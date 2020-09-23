@@ -1,10 +1,10 @@
 import pytest
 import numpy as np
 
-from hyper_transformer import HyperTransformer
+from brown_box.utils import HyperTransformer
 
 
-def single_real_range_linear():
+def test_single_real_range_linear():
     api_config = {
         "x": {"type": "real", "space": "linear", "range": (-10, 10)},
     }
@@ -13,7 +13,7 @@ def single_real_range_linear():
     y = tr.to_real_space(x=x_in)
     np.testing.assert_equal(np.stack([x_in], axis=1), y)
 
-def single_real_values_linear():
+def test_single_real_values_linear():
     api_config = {
         "x": {"type": "real", "space": "linear", "values": np.arange(4)},
     }
@@ -26,7 +26,7 @@ def single_real_values_linear():
     r = tr.continuous_transform(y)
     np.testing.assert_equal(np.stack([[3,3,3,1]],1), r)
 
-def single_int_range_linear():
+def test_single_int_range_linear():
     api_config = {
         "x": {"type": "int", "space": "linear", "range": (-10, 10)},
     }
@@ -43,7 +43,7 @@ def single_int_range_linear():
     r = tr.continuous_transform(y+10)
     np.testing.assert_equal(np.stack([[10, 10, 10]],1), r)
 
-def single_int_range_log():
+def test_single_int_range_log():
     api_config = {
         "x": {"type": "int", "space": "log", "range": (1, 100)},
     }
@@ -60,7 +60,7 @@ def single_int_range_log():
     r = tr.continuous_transform(y+10)
     np.testing.assert_equal(np.stack([[2, 2, 2]],1), r)
 
-def single_bool_values_log():
+def test_single_bool_values_log():
     api_config = {
         "x": {"type": "bool"},
     }
@@ -81,7 +81,7 @@ def single_bool_values_log():
     r = tr.continuous_transform(y-10)
     np.testing.assert_equal(np.stack([[0, 0, 0]],1), r)
 
-def single_category()):
+def test_single_category():
     api_config = {
         "x": {"type": "cat", "values": ["exp", "log", "abs"]},
     }
@@ -100,7 +100,7 @@ def single_category()):
     np.testing.assert_equal(np.stack([[1,0,0],[0,1,0],[0,1,0]]), r)
 
 
-def combined_int_cat_real()):
+def test_combined_int_cat_real():
     api_config = {
         "x": {"type": "int", "space": "log", "range": (1, 100)},
         "f": {"type": "cat", "values": ["exp", "log", "abs"]},
