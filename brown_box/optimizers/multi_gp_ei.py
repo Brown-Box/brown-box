@@ -1,12 +1,13 @@
 import numpy as np
+from sklearn.gaussian_process.kernels import Matern
+from sklearn.gaussian_process import GaussianProcessRegressor
+from scipy.stats import norm
 
 import bayesmark.random_search as rs
 from bayesmark import np_util
 from bayesmark.abstract_optimizer import AbstractOptimizer
 from bayesmark.experiment import experiment_main
 
-from sklearn.gaussian_process.kernels import Matern
-from sklearn.gaussian_process import GaussianProcessRegressor
 from ..utils import HyperTransformer
 from ..utils import DiscreteKernel
 
@@ -24,6 +25,7 @@ def _neg_ei(gp, tr, max_y=0):
         mean, std = gp.predict(X, return_std=True)
         z = (mean - max_y) / std
         return -(mean * norm.cdf(z) + std * norm.pdf(z))
+    return cost
 
 class MultiGaussianProcessExpectedImprovement(AbstractOptimizer):
     primary_import = "bayesmark"
@@ -63,7 +65,7 @@ class MultiGaussianProcessExpectedImprovement(AbstractOptimizer):
             function. Each suggestion is a dictionary where each key
             corresponds to a parameter being optimized.
         """
-        if len(known_points) < 2:
+        if len(self.known_points) < 2:
             x_guess = rs.suggest_dict([], [], self._api_config, n_suggestions=n_suggestions, random=self._random_state)
             return x_guess
         
@@ -75,8 +77,8 @@ class MultiGaussianProcessExpectedImprovement(AbstractOptimizer):
             random_state=self._random_state,
         )
         known_points  = {k: [dic[k] for dic in self.known_points] for k in self.known_points[0]}
-        gp.fit(known_points, self.known_values)
-        cost = _neg_ei(gp, self.tr, max(known_points))
+        gp.fit(self.tr.to_real_space(**known_points), self.known_values)
+        cost = _neg_ei(gp, self.tr, max(self.known_values))
         return minimum(cost, n_suggestions, self._api_config, self._random_state)
 
     def observe(self, X, y):
