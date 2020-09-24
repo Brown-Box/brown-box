@@ -2,7 +2,7 @@ import pytest
 from time import time
 
 
-from meta_optimizer.geneticSearch import GeneticSearch
+from brown_box_package.brown_box.meta_optimizers.geneticSearch import GeneticSearch
 
 
 def basic_fit_function(x):
