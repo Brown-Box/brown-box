@@ -20,7 +20,7 @@ def test_happy_path():
     }
     transformer = HyperTransformer(api_config)
     gs = GeneticSearch(transformer, basic_fit_function)
-    proposal = gs.search(1)
+    proposal = gs.search()
 
     assert pytest.approx(-1, 0.1) == proposal["x"]
 
@@ -32,18 +32,8 @@ def test_timeout_callback():
     transformer = HyperTransformer(api_config)
     gs = GeneticSearch(transformer, basic_fit_function)
     start_time = time()
-    proposal = gs.search(1, timeout=0.001)
+    proposal = gs.search(timeout=0.001)
     end_time = time()
 
     assert pytest.approx(-1, 0.1) == proposal["x"]
     assert end_time - start_time < 0.1
-
-
-# def test_categorical():
-#     api_config = {
-#         "f": {"type": "cat", "values": ["exp", "log", "abs"]},
-#     }
-#     gs = GeneticSearch(api_config, basic_fit_function)
-#     proposals = gs.search(1)
-#
-#     assert pytest.approx(-1, 0.1) == proposals[0]["x"]
