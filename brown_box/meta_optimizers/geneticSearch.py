@@ -4,8 +4,9 @@ from scipy.optimize._differentialevolution import DifferentialEvolutionSolver
 
 
 class GeneticSearch:
-    def __init__(self, api_config, fit_function):
-        self._api_config = api_config
+    def __init__(self, transformer, fit_function):
+        self._transformer = transformer
+        self._api_config = transformer.api_config
         self._fit_function = fit_function
         self._start_time = None
         self._timeout = None
