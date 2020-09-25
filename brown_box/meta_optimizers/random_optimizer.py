@@ -11,7 +11,7 @@ class RandomOptimizer(AbstractOptimizer):
     # Unclear what is best package to list for primary_import here.
     primary_import = "bayesmark"
 
-    def __init__(self, api_config, cost_function):
+    def __init__(self, api_config, random, cost_function):
         """Build wrapper class to use random search function in benchmark.
 
         Parameters
@@ -21,7 +21,7 @@ class RandomOptimizer(AbstractOptimizer):
         cost_function : callback taking X.
         """
         AbstractOptimizer.__init__(self, api_config)
-        self.random = np_util.random
+        self.random = random
         self.cost_function = cost_function
 
     def suggest(self, n=1, timeout=10):
@@ -47,7 +47,7 @@ class RandomOptimizer(AbstractOptimizer):
             x = rs.suggest_dict(
                 [], [], self.api_config, n_suggestions=1, random=self.random
             )[0]
-            y = self.cost_function(x)
+            y = self.cost_function(**x)
             return x, y
 
         iter_time = 0
@@ -56,7 +56,7 @@ class RandomOptimizer(AbstractOptimizer):
             guess = get_guess()
             best_values.append(guess)
             iter_time = time.time() - start_time
-
+        print(iter_time)
         best_values.sort(key=itemgetter(1))
 
         # return just X so it is compatible with AbstractOptimizer
