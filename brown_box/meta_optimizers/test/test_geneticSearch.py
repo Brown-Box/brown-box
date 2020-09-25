@@ -10,8 +10,8 @@ def basic_fit_function(x):
     return 2 * x ** 2 + 4 * x + 2
 
 
-def cat_fit_function(x):
-    return ["exp", "log", "abs"].index(x)
+def basic_fit_function_10(x):
+    return abs(x - 1)
 
 
 def test_happy_path():
@@ -37,3 +37,14 @@ def test_timeout_callback():
 
     assert pytest.approx(-1, 0.1) == proposal["x"]
     assert end_time - start_time < 0.1
+
+
+def test_log_space():
+    api_config = {
+        "x": {"type": "real", "space": "log", "range": (0.1, 100)},
+    }
+    transformer = HyperTransformer(api_config)
+    gs = GeneticSearch(transformer, basic_fit_function_10)
+    proposal = gs.search()
+
+    assert pytest.approx(10, 0.1) == proposal["x"]

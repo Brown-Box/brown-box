@@ -1,10 +1,14 @@
 from time import time
+from typing import Optional
 
+import numpy as np
 from scipy.optimize._differentialevolution import DifferentialEvolutionSolver
+
+from brown_box_package.brown_box.utils.hyper_transformer import HyperTransformer
 
 
 class GeneticSearch:
-    def __init__(self, transformer, fit_function):
+    def __init__(self, transformer: HyperTransformer, fit_function: callable) -> None:
         self._transformer = transformer
         self._api_config = transformer.api_config
         self._fit_function = fit_function
@@ -12,11 +16,15 @@ class GeneticSearch:
         self._timeout = None
         self._timeout_passed = None
 
-    def search(self, seed=42, timeout=None):
-        bounds = [
-            (param_info["range"][0], param_info["range"][1])
-            for param_info in self._api_config.values()
-        ]
+    def search(self, seed: int = 42, timeout: Optional[int] = None) -> dict:
+        bounds = []
+        for param_name, param_info in self._api_config.items():
+            if param_info["type"] not in ["real", "int"]:
+                param_type = param_info["type"]
+                raise ValueError(f"Unsupported type of parameter {param_type}")
+            kwargs = {param_name: param_info["range"]}
+            real_range = self._transformer.to_real_space(**kwargs)
+            bounds.append((real_range[0][0], real_range[1][0]))
 
         if timeout:
             self._start_time = time()
@@ -37,10 +45,11 @@ class GeneticSearch:
             )
 
         best_value = solver.x
-        result = {
-            param_name: best_value[i]
-            for i, param_name in enumerate(self._api_config.keys())
-        }
+        real_result = [
+            [best_value[i]] for i in range(len(self._api_config.keys()))
+        ]
+        result = self._transformer.to_hyper_space(np.array(real_result))
+        result = {key: val[0][0] for key, val in result.items()}
 
         return result
 
