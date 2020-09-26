@@ -1,16 +1,16 @@
 import numpy as np
-from sklearn.gaussian_process.kernels import Matern
 from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern
 
 import bayesmark.random_search as rs
 from bayesmark import np_util
 from bayesmark.abstract_optimizer import AbstractOptimizer
 from bayesmark.experiment import experiment_main
 
-from ..utils import HyperTransformer
-from ..utils import DiscreteKernel
-from ..meta_optimizers import RandomOptimizer
 from ..cost_functions import neg_ei
+from ..meta_optimizers import RandomOptimizer
+from ..utils import DiscreteKernel, HyperTransformer
+
 
 class MultiGaussianProcess(AbstractOptimizer):
     primary_import = "bayesmark"
@@ -55,7 +55,7 @@ class MultiGaussianProcess(AbstractOptimizer):
         if len(self.known_points) < 2:
             x_guess = rs.suggest_dict([], [], self._api_config, n_suggestions=n_suggestions, random=self._random_state)
             return x_guess
-        
+
         gp = GaussianProcessRegressor(
             kernel=DiscreteKernel(Matern(nu=2.5), self.tr),
             alpha=1e-6,
@@ -63,9 +63,9 @@ class MultiGaussianProcess(AbstractOptimizer):
             n_restarts_optimizer=5,
             random_state=self._random_state,
         )
-        known_points  = {k: [dic[k] for dic in self.known_points] for k in self.known_points[0]}
+        known_points = {k: [dic[k] for dic in self.known_points] for k in self.known_points[0]}
         gp.fit(self.tr.to_real_space(**known_points), self.known_values)
- 
+
         cost_f = self._cost(gp, self.tr, max_y=max(self.known_values), x=0.01, kappa=2.6)
         meta_minimizer = self._meta_optimizer(self.api_config, self._random_state, cost_f)
         return meta_minimizer.suggest(n_suggestions, timeout=3)

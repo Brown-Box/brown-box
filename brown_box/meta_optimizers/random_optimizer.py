@@ -2,11 +2,11 @@ import time
 from operator import itemgetter
 
 import bayesmark.random_search as rs
-from bayesmark import np_util
 from bayesmark.abstract_optimizer import AbstractOptimizer
 from bayesmark.experiment import experiment_main
 
-N_SUGGESTIONS=1000
+N_SUGGESTIONS = 1000
+
 
 class RandomOptimizer(AbstractOptimizer):
     # Unclear what is best package to list for primary_import here.
@@ -45,13 +45,11 @@ class RandomOptimizer(AbstractOptimizer):
         best_values = []  # tuples (X, Y)
 
         def get_guess():
-            x = rs.suggest_dict(
-                [], [], self.api_config, n_suggestions=N_SUGGESTIONS, random=self.random
-            )
+            x = rs.suggest_dict([], [], self.api_config, n_suggestions=N_SUGGESTIONS, random=self.random)
             _p = {k: [dic[k] for dic in x] for k in x[0]}
             y = self.cost_function(**_p)
 
-            return [(_x, _y) for _x, _y in zip(x, y)] 
+            return [(_x, _y) for _x, _y in zip(x, y)]
 
         iter_time = 0
         _iter = 0
