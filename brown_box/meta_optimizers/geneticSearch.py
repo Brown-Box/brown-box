@@ -28,8 +28,7 @@ class GeneticSearch:
             elif param_info["type"] == "cat":
                 bounds.append((0, 1))
             elif param_info["type"] == "bool":
-                kwargs = {param_name: param_info["range"]}
-                raise NotImplemented()
+                bounds.append((0, 1))
             else:
                 param_type = param_info["type"]
                 raise ValueError(f"Unknown parameter type {param_type}")
@@ -57,7 +56,6 @@ class GeneticSearch:
 
         best_value = solver.x
         real_params = self._GA_to_real(best_value)
-        # real_params = [np.array(val) if type(val) is not list else val for val in real_params]  # TODO je to potreba?
         real_params = np.stack(real_params)
         if len(real_params.shape) == 1:
             real_params = np.array([real_params])
@@ -93,7 +91,8 @@ class GeneticSearch:
                 kwargs = {param_name: [param_info["values"][cat_pos]]}
                 value = self._transformer.to_real_space(**kwargs)[0]
             elif param_info["type"] == "bool":
-                raise NotImplemented()
+                kwargs = {param_name: [int(population_member[i] >= 0.5)]}
+                value = self._transformer.to_real_space(**kwargs)[0]
             else:
                 raise ValueError()
             real_params.append(value)
@@ -128,16 +127,21 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
             if param_info["type"] in ["cat"]:
                 number_of_categories = len(param_info["values"])
                 pop0_cat, r0_cat, r1_cat = [min(int(self.population[i] * number_of_categories), number_of_categories) for i in [0, r0, r1]]
-                if r0_cat != r1_cat:
-                    random_number = self.random_number_generator.random_sample(1)[0]
-                    if random_number < self.scale:
-                        if pop0_cat != r0_cat:
-                            new_pop_member[i] = self.population[r0]
-                        else:
-                            new_pop_member[i] = self.population[r1]
-                    else:
-                        new_pop_member[i] = self.population[0]
+                new_pop_member = self._maybe_switch_different(new_pop_member, i, r0, r1, pop0_cat, r0_cat, r1_cat)
             elif param_info["type"] == "bool":
-                raise NotImplementedError()
+                pop0_bool, r0_bool, r1_bool = [int(self.population[i] >= 0.5) for i in [0, r0, r1]]
+                new_pop_member = self._maybe_switch_different(new_pop_member, i, r0, r1, pop0_bool, r0_bool, r1_bool)
 
         return new_pop_member
+
+    def _maybe_switch_different(self, pop_member, param_i, r0, r1, pop0_val, r0_val, r1_val):
+        if r0_val != r1_val:
+            random_number = self.random_number_generator.random_sample(1)[0]
+            if random_number < self.scale:
+                if pop0_val != r0_val:
+                    pop_member[param_i] = self.population[r0]
+                else:
+                    pop_member[param_i] = self.population[r1]
+            else:
+                pop_member[param_i] = self.population[0]
+        return pop_member

@@ -6,7 +6,7 @@ import numpy as np
 from brown_box_package.brown_box.meta_optimizers.geneticSearch import GeneticSearch
 from brown_box_package.brown_box.utils.hyper_transformer import HyperTransformer
 
-# TODO toto zere list
+
 def basic_fit_function(values):
     x = values[0]
     return 2 * x ** 2 + 4 * x + 2
@@ -17,7 +17,7 @@ def basic_fit_function_10(values):
     return abs(x - 1)
 
 
-def cat_fit_function(values):
+def fit_function_cat(values):
     cat_value = values[0]
     if np.array_equal([1., 0., 0.], cat_value):
         return 0
@@ -27,6 +27,11 @@ def cat_fit_function(values):
         return 2
     else:
         raise ValueError(f"Bad value of x_real: {values}")
+
+
+def fit_function_bool(values):
+    x = values[0]
+    return float(not x)
 
 
 def test_happy_path():
@@ -70,10 +75,21 @@ def test_categorical():
         "f": {"type": "cat", "values": ["exp", "log", "abs"]},
     }
     transformer = HyperTransformer(api_config)
-    gs = GeneticSearch(transformer, cat_fit_function)
+    gs = GeneticSearch(transformer, fit_function_cat)
     proposal = gs.search()
 
     assert "exp" == proposal["f"]
+
+
+def test_bool():
+    api_config = {
+        "v": {"type": "bool"},
+    }
+    transformer = HyperTransformer(api_config)
+    gs = GeneticSearch(transformer, fit_function_bool)
+    proposal = gs.search()
+
+    assert 1 == proposal["v"]
 
 
 # test cat + real
