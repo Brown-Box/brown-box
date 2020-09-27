@@ -26,12 +26,29 @@ def fit_function_cat(values):
     elif np.array_equal([0., 0., 1.], cat_value):
         return 2
     else:
-        raise ValueError(f"Bad value of x_real: {values}")
+        raise ValueError(f"Bad value: {values}")
 
 
 def fit_function_bool(values):
     x = values[0]
     return float(not x)
+
+
+def fit_function_mixed_type(values):
+    x = values[0]
+    b = values[1]
+    c = values[2]
+    y_x = 2 * x ** 2 + 4 * x + 2
+    y_b = float(not b)
+    if np.array_equal([1., 0., 0.], c):
+        y_c = 0
+    elif np.array_equal([0., 1., 0.], c):
+        y_c = 1
+    elif np.array_equal([0., 0., 1.], c):
+        y_c = 2
+    else:
+        raise ValueError(f"Bad value: {c}")
+    return y_x * y_b * y_c      # (-1, 0, first_value)
 
 
 def test_happy_path():
@@ -72,24 +89,33 @@ def test_log_space():
 
 def test_categorical():
     api_config = {
-        "f": {"type": "cat", "values": ["exp", "log", "abs"]},
+        "x": {"type": "cat", "values": ["exp", "log", "abs"]},
     }
     transformer = HyperTransformer(api_config)
     gs = GeneticSearch(transformer, fit_function_cat)
     proposal = gs.search()
 
-    assert "exp" == proposal["f"]
+    assert "exp" == proposal["x"]
 
 
 def test_bool():
     api_config = {
-        "v": {"type": "bool"},
+        "x": {"type": "bool"},
     }
     transformer = HyperTransformer(api_config)
     gs = GeneticSearch(transformer, fit_function_bool)
     proposal = gs.search()
 
-    assert 1 == proposal["v"]
+    assert 1 == proposal["x"]
 
 
-# test cat + real
+def test_mixed_types():
+    api_config = {
+        "x": {"type": "real", "space": "linear", "range": (-10, 10)},
+        "b": {"type": "bool"},
+        "c": {"type": "cat", "values": ["exp", "log", "abs"]},
+    }
+    transformer = HyperTransformer(api_config)
+    gs = GeneticSearch(transformer, fit_function_mixed_type)
+    proposal = gs.search()
+    assert pytest.approx(-1, 0.1) == proposal["x"] and 1 == proposal["b"] and "exp" == proposal["c"]
