@@ -10,3 +10,13 @@ def neg_ei(gp, tr, max_y=0, xi=0.1, **_):
         return -(a * norm.cdf(z) + std * norm.pdf(z))
 
     return cost
+
+
+def neg_ei_real(gp, tr, max_y=0, xi=0.1, **_):
+    def cost(X):
+        mean, std = gp.predict(X.reshape(1, -1), return_std=True)
+        a = mean - max_y - xi
+        z = a / std
+        return -(a * norm.cdf(z) + std * norm.pdf(z))
+
+    return cost
