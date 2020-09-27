@@ -19,11 +19,11 @@ def basic_fit_function_10(values):
 
 def fit_function_cat(values):
     cat_value = values[0]
-    if np.array_equal([1., 0., 0.], cat_value):
+    if np.array_equal([1.0, 0.0, 0.0], cat_value):
         return 0
-    elif np.array_equal([0., 1., 0.], cat_value):
+    elif np.array_equal([0.0, 1.0, 0.0], cat_value):
         return 1
-    elif np.array_equal([0., 0., 1.], cat_value):
+    elif np.array_equal([0.0, 0.0, 1.0], cat_value):
         return 2
     else:
         raise ValueError(f"Bad value: {values}")
@@ -40,15 +40,15 @@ def fit_function_mixed_type(values):
     c = values[2]
     y_x = 2 * x ** 2 + 4 * x + 2
     y_b = float(not b)
-    if np.array_equal([1., 0., 0.], c):
+    if np.array_equal([1.0, 0.0, 0.0], c):
         y_c = 0
-    elif np.array_equal([0., 1., 0.], c):
+    elif np.array_equal([0.0, 1.0, 0.0], c):
         y_c = 1
-    elif np.array_equal([0., 0., 1.], c):
+    elif np.array_equal([0.0, 0.0, 1.0], c):
         y_c = 2
     else:
         raise ValueError(f"Bad value: {c}")
-    return y_x * y_b * y_c      # (-1, 0, first_value)
+    return y_x * y_b * y_c  # (-1, 0, first_value)
 
 
 def test_happy_path():
@@ -118,4 +118,8 @@ def test_mixed_types():
     transformer = HyperTransformer(api_config)
     gs = GeneticSearch(transformer)
     proposal = gs.search(fit_function_mixed_type)
-    assert pytest.approx(-1, 0.1) == proposal["x"] and 1 == proposal["b"] and "exp" == proposal["c"]
+    assert (
+        pytest.approx(-1, 0.1) == proposal["x"]
+        and 1 == proposal["b"]
+        and "exp" == proposal["c"]
+    )
