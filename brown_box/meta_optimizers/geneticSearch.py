@@ -9,16 +9,15 @@ from brown_box_package.brown_box.utils.hyper_transformer import HyperTransformer
 
 
 class GeneticSearch:
-    def __init__(self, transformer: HyperTransformer, fit_function: callable) -> None:
+    def __init__(self, transformer: HyperTransformer) -> None:
         self._transformer = transformer
         self._api_config = transformer.api_config
-        self._fit_function = fit_function
         self._start_time = None
         self._timeout = None
         self._timeout_passed = None
 
     # TODO move fit function here
-    def search(self, seed: int = 42, timeout: Optional[int] = None) -> dict:
+    def search(self, fit_function: callable, seed: int = 42, timeout: Optional[int] = None) -> dict:
         bounds = []
         for param_name, param_info in self._api_config.items():
             if param_info["type"] in ["real", "int"]:
@@ -41,7 +40,7 @@ class GeneticSearch:
         else:
             callback = None
 
-        func = self._GA_to_real_wrapper(self._fit_function)
+        func = self._GA_to_real_wrapper(fit_function)
 
         # TODO turn on polish? Find out our own way to polish result?
         solver = BrownEvolutionSolver(
