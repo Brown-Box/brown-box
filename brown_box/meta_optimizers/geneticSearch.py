@@ -33,8 +33,10 @@ class GeneticSearch:
         for param_name, param_info in self._api_config.items():
             if param_info["type"] in ["real", "int"]:
                 kwargs = {param_name: param_info["range"]}
-                real_range = self._transformer.to_real_space(**kwargs)
-                bounds.append([val[0] for val in real_range])
+                # real_range = self._transformer.to_real_space(**kwargs)
+                # tr._reals[key]([value])
+                real_range = self._transformer._reals[param_name](param_info["range"])
+                bounds.append([val for val in real_range])
             elif param_info["type"] == "cat":
                 bounds.append((0, 1))
             elif param_info["type"] == "bool":
@@ -71,7 +73,7 @@ class GeneticSearch:
 
         best_value = solver.x
         real_params = self._GA_to_real(best_value)
-        real_params = np.stack(real_params)
+        real_params = np.concatenate(real_params)
         if len(real_params.shape) == 1:
             real_params = np.array([real_params])
         result = self._transformer.to_hyper_space(real_params)
@@ -97,21 +99,21 @@ class GeneticSearch:
         real_params = []
         for i, (param_name, param_info) in enumerate(self._api_config.items()):
             if param_info["type"] == "real":
-                value = population_member[i]
+                value = np.array([population_member[i]])
             # TODO ask Kuba how to process int. Is rounding right?
             elif param_info["type"] == "int":
-                value = int(round(population_member[i]))
+                value = np.array([int(round(population_member[i]))])
             elif param_info["type"] == "cat":
                 number_of_categories = len(param_info["values"])
                 cat_pos = min(
                     int(population_member[i] * number_of_categories),
                     number_of_categories,
                 )
-                kwargs = {param_name: [param_info["values"][cat_pos]]}
-                value = self._transformer.to_real_space(**kwargs)[0]
+                hypervalue = param_info["values"][cat_pos]
+                value = self._transformer._reals[param_name]([hypervalue])[0]
             elif param_info["type"] == "bool":
-                kwargs = {param_name: [int(population_member[i] >= 0.5)]}
-                value = self._transformer.to_real_space(**kwargs)[0]
+                hypervalue = int(population_member[i] >= 0.5)
+                value = self._transformer._reals[param_name]([hypervalue])
             else:
                 raise ValueError()
             real_params.append(value)
@@ -175,27 +177,27 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
         new_pop_member = self.population[0] + self.scale * (
             self.population[r0] - self.population[r1]
         )
-        for i, (param_name, param_info) in enumerate(
+        for param_i, (param_name, param_info) in enumerate(
             self.transformer.api_config.items()
         ):
             if param_info["type"] in ["cat"]:
                 number_of_categories = len(param_info["values"])
                 pop0_cat, r0_cat, r1_cat = [
                     min(
-                        int(self.population[i] * number_of_categories),
+                        int(self.population[i][param_i] * number_of_categories),
                         number_of_categories,
                     )
                     for i in [0, r0, r1]
                 ]
                 new_pop_member = self._maybe_switch_different(
-                    new_pop_member, i, r0, r1, pop0_cat, r0_cat, r1_cat
+                    new_pop_member, param_i, r0, r1, pop0_cat, r0_cat, r1_cat
                 )
             elif param_info["type"] == "bool":
                 pop0_bool, r0_bool, r1_bool = [
-                    int(self.population[i] >= 0.5) for i in [0, r0, r1]
+                    int(self.population[i][param_i] >= 0.5) for i in [0, r0, r1]
                 ]
                 new_pop_member = self._maybe_switch_different(
-                    new_pop_member, i, r0, r1, pop0_bool, r0_bool, r1_bool
+                    new_pop_member, param_i, r0, r1, pop0_bool, r0_bool, r1_bool
                 )
 
         return new_pop_member
@@ -207,9 +209,9 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
             random_number = self.random_number_generator.random_sample(1)[0]
             if random_number < self.scale:
                 if pop0_val != r0_val:
-                    pop_member[param_i] = self.population[r0]
+                    pop_member[param_i] = self.population[r0][param_i]
                 else:
-                    pop_member[param_i] = self.population[r1]
+                    pop_member[param_i] = self.population[r1][param_i]
             else:
-                pop_member[param_i] = self.population[0]
+                pop_member[param_i] = self.population[0][param_i]
         return pop_member

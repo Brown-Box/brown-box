@@ -48,7 +48,7 @@ def fit_function_mixed_type(values):
         y_c = 2
     else:
         raise ValueError(f"Bad value: {c}")
-    return y_x * y_b * y_c  # (-1, 0, first_value)
+    return y_x + y_b + y_c  # == 0 for (-1, 0, first_value)
 
 
 def test_happy_path():
