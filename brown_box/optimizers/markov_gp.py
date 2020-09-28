@@ -7,7 +7,7 @@ from bayesmark import np_util
 from bayesmark.abstract_optimizer import AbstractOptimizer
 from bayesmark.experiment import experiment_main
 
-from ..cost_functions import neg_ei
+from ..cost_functions import ei
 from ..meta_optimizers import RandomOptimizer
 from ..utils import DiscreteKernel, HyperTransformer
 
@@ -15,7 +15,7 @@ from ..utils import DiscreteKernel, HyperTransformer
 class MarkovGaussianProcess(AbstractOptimizer):
     primary_import = "bayesmark"
 
-    def __init__(self, api_config, random=np_util.random, meta_optimizer=RandomOptimizer, cost=neg_ei):
+    def __init__(self, api_config, random=np_util.random, meta_optimizer=RandomOptimizer, cost=ei):
         """This optimizes samples multiple suggestions from Gaussian Process.
 
         Cost function is set to maximixe expected improvement.
@@ -72,10 +72,10 @@ class MarkovGaussianProcess(AbstractOptimizer):
             all_known_points = {k: [dic[k] for dic in all_points] for k in all_points[0]}
             gp.fit(self.tr.to_real_space(**all_known_points), all_values)
 
-            cost_f = self._cost(gp, self.tr, max_y=max(all_values), x=0.10, kappa=1.6)
+            cost_f = self._cost(gp, self.tr, max_y=max(all_values), min_y=min(all_values), x=0.10, kappa=1.6)
             meta_minimizer = self._meta_optimizer(self.api_config, self._random_state, cost_f)
 
-            min_point = meta_minimizer.suggest(1, timeout=0.7)
+            min_point = meta_minimizer.suggest(1, timeout=4.0)
             new_points += min_point
 
             _p = {k: [dic[k] for dic in min_point] for k in min_point[0]}

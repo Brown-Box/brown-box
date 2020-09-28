@@ -1,5 +1,5 @@
-from .negative_expected_improvement import neg_ei
-from .negative_probability_of_improvement import neg_poi
-from .negative_upper_confidence_bound import neg_ucb
+from .expected_improvement import ei, ei_real
+from .probability_of_improvement import poi, poi_real
+from .upper_confidence_bound import ucb, ucb_real
 
-__all__=["neg_ei", "neg_poi", "neg_ucb"]
+__all__=["ei", "poi", "ucb", "ei_real", "poi_real", "ucb_real"]

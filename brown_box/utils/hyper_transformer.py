@@ -235,7 +235,7 @@ class HyperTransformer:
             new_points[:, sl] = _coerc(points[:, sl])
         return new_points
 
-    def randon_continuous(self, n , random_state):
+    def random_continuous(self, n , random_state):
         cols = []
         for rnd in self._randoms:
             cols.append(rnd(n, random_state))

@@ -7,16 +7,15 @@ from bayesmark import np_util
 from bayesmark.abstract_optimizer import AbstractOptimizer
 from bayesmark.experiment import experiment_main
 
-from ..cost_functions.negative_expected_improvement import neg_ei_real
-from ..cost_functions.negative_upper_confidence_bound import neg_ucb_real
-from ..meta_optimizers.scipy_optimizer import scipy_minimize
+from ..cost_functions import ei_real
+from ..meta_optimizers import SciPyOptimizer
 from ..utils import DiscreteKernel, HyperTransformer
 
 
 class MarkovGaussianProcessReal(AbstractOptimizer):
     primary_import = "bayesmark"
 
-    def __init__(self, api_config, random=np_util.random, meta_optimizer=scipy_minimize, cost=neg_ei_real):
+    def __init__(self, api_config, random=np_util.random, meta_optimizer=SciPyOptimizer, cost=ei_real):
         """This optimizes samples multiple suggestions from Gaussian Process.
 
         Cost function is set to maximixe expected improvement.
@@ -74,7 +73,9 @@ class MarkovGaussianProcessReal(AbstractOptimizer):
             gp.fit(self.tr.to_real_space(**all_known_points), all_values)
 
             cost_f = self._cost(gp, self.tr, max_y=max(all_values), min_y=min(all_values), xi=0.1, kappa=2.6)
-            min_point = [self._meta_optimizer(self.tr, gp, cost_f, self._random_state)]
+            meta_minimizer = self._meta_optimizer(self.tr, self._random_state, cost_f)
+
+            min_point = [meta_minimizer.suggest(timeout=4.0)]
             new_points += min_point
 
             _p = {k: [dic[k] for dic in min_point] for k in min_point[0]}

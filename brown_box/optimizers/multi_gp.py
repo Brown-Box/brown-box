@@ -7,7 +7,7 @@ from bayesmark import np_util
 from bayesmark.abstract_optimizer import AbstractOptimizer
 from bayesmark.experiment import experiment_main
 
-from ..cost_functions import neg_ei
+from ..cost_functions import ei
 from ..meta_optimizers import RandomOptimizer
 from ..utils import DiscreteKernel, HyperTransformer
 
@@ -15,7 +15,7 @@ from ..utils import DiscreteKernel, HyperTransformer
 class MultiGaussianProcess(AbstractOptimizer):
     primary_import = "bayesmark"
 
-    def __init__(self, api_config, random=np_util.random, meta_optimizer=RandomOptimizer, cost=neg_ei):
+    def __init__(self, api_config, random=np_util.random, meta_optimizer=RandomOptimizer, cost=ei):
         """This optimizes samples multiple suggestions from Gaussian Process.
 
         Cost function is set to maximixe expected improvement.
