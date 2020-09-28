@@ -18,7 +18,7 @@ def basic_fit_function_10(values):
 
 
 def fit_function_cat(values):
-    cat_value = values[0]
+    cat_value = values
     if np.array_equal([1.0, 0.0, 0.0], cat_value):
         return 0
     elif np.array_equal([0.0, 1.0, 0.0], cat_value):
@@ -37,7 +37,7 @@ def fit_function_bool(values):
 def fit_function_mixed_type(values):
     x = values[0]
     b = values[1]
-    c = values[2]
+    c = values[2:]
     y_x = 2 * x ** 2 + 4 * x + 2
     y_b = float(not b)
     if np.array_equal([1.0, 0.0, 0.0], c):

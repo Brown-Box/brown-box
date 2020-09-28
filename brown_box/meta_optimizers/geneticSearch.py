@@ -73,7 +73,6 @@ class GeneticSearch:
 
         best_value = solver.x
         real_params = self._GA_to_real(best_value)
-        real_params = np.concatenate(real_params)
         if len(real_params.shape) == 1:
             real_params = np.array([real_params])
         result = self._transformer.to_hyper_space(real_params)
@@ -117,6 +116,8 @@ class GeneticSearch:
             else:
                 raise ValueError()
             real_params.append(value)
+
+        real_params = np.concatenate(real_params)
         return real_params
 
 
