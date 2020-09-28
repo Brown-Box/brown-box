@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from brown_box_package.brown_box.utils import HyperTransformer
+from brown_box.utils import HyperTransformer
 
 
 def test_single_real_range_linear():
