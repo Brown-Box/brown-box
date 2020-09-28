@@ -2,17 +2,7 @@ from time import time
 from typing import Optional
 
 import numpy as np
-from scipy.optimize._differentialevolution import (
-    DifferentialEvolutionSolver,
-    _ConstraintWrapper,
-    warnings,
-    MapWrapper,
-    _FunctionWrapper,
-    Bounds,
-    check_random_state,
-    string_types,
-    new_bounds_to_old,
-)
+from scipy.optimize._differentialevolution import DifferentialEvolutionSolver
 
 from brown_box_package.brown_box.utils.hyper_transformer import HyperTransformer
 
@@ -32,9 +22,6 @@ class GeneticSearch:
         bounds = []
         for param_name, param_info in self._api_config.items():
             if param_info["type"] in ["real", "int"]:
-                kwargs = {param_name: param_info["range"]}
-                # real_range = self._transformer.to_real_space(**kwargs)
-                # tr._reals[key]([value])
                 real_range = self._transformer._reals[param_name](param_info["range"])
                 bounds.append([val for val in real_range])
             elif param_info["type"] == "cat":
@@ -122,10 +109,6 @@ class GeneticSearch:
 
 
 class BrownEvolutionSolver(DifferentialEvolutionSolver):
-    # def __init__(self, transformer, *args, **kwargs):
-    #     self.transformer = transformer
-    #   super().__init__(*args, **kwargs)
-
     def __init__(
         self,
         transformer,
