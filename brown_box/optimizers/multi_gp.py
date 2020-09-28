@@ -68,7 +68,7 @@ class MultiGaussianProcess(AbstractOptimizer):
 
         cost_f = self._cost(gp, self.tr, max_y=max(self.known_values), x=0.01, kappa=2.6)
         meta_minimizer = self._meta_optimizer(self.api_config, self._random_state, cost_f)
-        return meta_minimizer.suggest(n_suggestions, timeout=3)
+        return meta_minimizer.suggest(n_suggestions, timeout=30)
 
     def observe(self, X, y):
         """Feed the observations back to hyperopt.
