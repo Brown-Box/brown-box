@@ -8,7 +8,7 @@ from scipy.special import logit, expit
 
 
 def exp10(x):
-    return np.power(10, x).astype(int)
+    return np.power(10.0, x)
 
 
 CONT_REAL = {

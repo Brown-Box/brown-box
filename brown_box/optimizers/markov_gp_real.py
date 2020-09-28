@@ -16,7 +16,7 @@ from ..utils import DiscreteKernel, HyperTransformer
 class MarkovGaussianProcessReal(AbstractOptimizer):
     primary_import = "bayesmark"
 
-    def __init__(self, api_config, random=np_util.random, meta_optimizer=scipy_minimize, cost=neg_ucb_real):
+    def __init__(self, api_config, random=np_util.random, meta_optimizer=scipy_minimize, cost=neg_ei_real):
         """This optimizes samples multiple suggestions from Gaussian Process.
 
         Cost function is set to maximixe expected improvement.
@@ -73,7 +73,7 @@ class MarkovGaussianProcessReal(AbstractOptimizer):
             all_known_points = {k: [dic[k] for dic in all_points] for k in all_points[0]}
             gp.fit(self.tr.to_real_space(**all_known_points), all_values)
 
-            cost_f = self._cost(gp, self.tr, max_y=max(all_values), xi=0.01, kappa=2.6)
+            cost_f = self._cost(gp, self.tr, max_y=max(all_values), min_y=min(all_values), xi=0.1, kappa=2.6)
             min_point = [self._meta_optimizer(self.tr, gp, cost_f, self._random_state)]
             new_points += min_point
 
@@ -96,8 +96,12 @@ class MarkovGaussianProcessReal(AbstractOptimizer):
         y : array-like, shape (n,)
             Corresponding values where objective has been evaluated.
         """
-        self.known_points += X
-        self.known_values = np.concatenate([self.known_values, y])
+        obs_y = []
+        for _X, _y in zip(X, y):
+            if np.isfinite(_y): 
+                self.known_points.append(_X)
+                obs_y.append(_y)
+        self.known_values = np.concatenate([self.known_values, obs_y])
 
 
 if __name__ == "__main__":
