@@ -6,7 +6,7 @@ def qlog10(x):
     return np.log10(np.asarray(x, dtype=int))
 
 def qexp10(x):
-    return np.power(10, x).astype(int)
+    return np.power(10.0, x).astype(int)
 
 def qbilog(x):
     return bilog(np.asarray(x, dtype=int))

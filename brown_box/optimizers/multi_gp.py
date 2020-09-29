@@ -1,36 +1,21 @@
 import numpy as np
-from sklearn.gaussian_process.kernels import Matern
 from sklearn.gaussian_process import GaussianProcessRegressor
-from scipy.stats import norm
+from sklearn.gaussian_process.kernels import Matern
 
 import bayesmark.random_search as rs
 from bayesmark import np_util
 from bayesmark.abstract_optimizer import AbstractOptimizer
 from bayesmark.experiment import experiment_main
 
-from ..utils import HyperTransformer
-from ..utils import DiscreteKernel
-
-def minimum(cost, n_suggestions, api_config, random_state, seeds=1000):
-    x_guess = rs.suggest_dict([], [], api_config, n_suggestions=seeds, random=random_state)
-    dict_lists  = {k: [dic[k] for dic in x_guess] for k in x_guess[0]}
-    y = cost(**dict_lists)
-    idx = np.argsort(y)
-    return [x_guess[i] for i in idx[:n_suggestions]]
+from ..cost_functions import ei
+from ..meta_optimizers import RandomOptimizer
+from ..utils import DiscreteKernel, HyperTransformer
 
 
-def _neg_ei(gp, tr, max_y=0):
-    def cost(**kwargs):
-        X = tr.to_real_space(**kwargs)
-        mean, std = gp.predict(X, return_std=True)
-        z = (mean - max_y) / std
-        return -(mean * norm.cdf(z) + std * norm.pdf(z))
-    return cost
-
-class MultiGaussianProcessExpectedImprovement(AbstractOptimizer):
+class MultiGaussianProcess(AbstractOptimizer):
     primary_import = "bayesmark"
 
-    def __init__(self, api_config, random=np_util.random):
+    def __init__(self, api_config, random=np_util.random, meta_optimizer=RandomOptimizer, cost=ei):
         """This optimizes samples multiple suggestions from Gaussian Process.
 
         Cost function is set to maximixe expected improvement.
@@ -44,6 +29,8 @@ class MultiGaussianProcessExpectedImprovement(AbstractOptimizer):
         self._api_config = api_config
         self._random_state = random
         self.tr = HyperTransformer(api_config)
+        self._cost = cost
+        self._meta_optimizer = meta_optimizer
         self.known_points = []
         self.known_values = []
 
@@ -68,7 +55,7 @@ class MultiGaussianProcessExpectedImprovement(AbstractOptimizer):
         if len(self.known_points) < 2:
             x_guess = rs.suggest_dict([], [], self._api_config, n_suggestions=n_suggestions, random=self._random_state)
             return x_guess
-        
+
         gp = GaussianProcessRegressor(
             kernel=DiscreteKernel(Matern(nu=2.5), self.tr),
             alpha=1e-6,
@@ -76,10 +63,12 @@ class MultiGaussianProcessExpectedImprovement(AbstractOptimizer):
             n_restarts_optimizer=5,
             random_state=self._random_state,
         )
-        known_points  = {k: [dic[k] for dic in self.known_points] for k in self.known_points[0]}
+        known_points = {k: [dic[k] for dic in self.known_points] for k in self.known_points[0]}
         gp.fit(self.tr.to_real_space(**known_points), self.known_values)
-        cost = _neg_ei(gp, self.tr, max(self.known_values))
-        return minimum(cost, n_suggestions, self._api_config, self._random_state)
+
+        cost_f = self._cost(gp, self.tr, max_y=max(self.known_values), x=0.01, kappa=2.6)
+        meta_minimizer = self._meta_optimizer(self.api_config, self._random_state, cost_f)
+        return meta_minimizer.suggest(n_suggestions, timeout=30)
 
     def observe(self, X, y):
         """Feed the observations back to hyperopt.
@@ -98,4 +87,4 @@ class MultiGaussianProcessExpectedImprovement(AbstractOptimizer):
 
 
 if __name__ == "__main__":
-    experiment_main(BrownBoxOptimizer)
+    experiment_main(MultiGaussianProcess)
