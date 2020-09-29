@@ -63,7 +63,7 @@ class GeneticSearch:
         if len(real_params.shape) == 1:
             real_params = np.array([real_params])
         result = self._transformer.to_hyper_space(real_params)
-        result = {key: val[0] for key, val in result.items()}
+        result = {key: val[0][0] for key, val in result.items()}
 
         return result
 
