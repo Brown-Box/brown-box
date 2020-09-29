@@ -16,7 +16,7 @@ class GeneticSearch:
         self._timeout_passed = None
 
     # TODO move fit function here
-    def search(
+    def suggest(
         self, fit_function: callable, seed: int = 42, timeout: Optional[int] = None
     ) -> dict:
         bounds = []

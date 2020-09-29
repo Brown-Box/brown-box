@@ -57,7 +57,7 @@ def test_happy_path():
     }
     transformer = HyperTransformer(api_config)
     gs = GeneticSearch(transformer)
-    proposal = gs.search(basic_fit_function)
+    proposal = gs.suggest(basic_fit_function)
 
     assert pytest.approx(-1, 0.1) == proposal["x"]
 
@@ -69,7 +69,7 @@ def test_timeout_callback():
     transformer = HyperTransformer(api_config)
     gs = GeneticSearch(transformer)
     start_time = time()
-    proposal = gs.search(basic_fit_function, timeout=0.001)
+    proposal = gs.suggest(basic_fit_function, timeout=0.001)
     end_time = time()
 
     assert pytest.approx(-1, 1) == proposal["x"]
@@ -82,7 +82,7 @@ def test_log_space():
     }
     transformer = HyperTransformer(api_config)
     gs = GeneticSearch(transformer)
-    proposal = gs.search(basic_fit_function_10)
+    proposal = gs.suggest(basic_fit_function_10)
 
     assert pytest.approx(10, 0.1) == proposal["x"]
 
@@ -93,7 +93,7 @@ def test_categorical():
     }
     transformer = HyperTransformer(api_config)
     gs = GeneticSearch(transformer)
-    proposal = gs.search(fit_function_cat)
+    proposal = gs.suggest(fit_function_cat)
 
     assert "exp" == proposal["x"]
 
@@ -104,7 +104,7 @@ def test_bool():
     }
     transformer = HyperTransformer(api_config)
     gs = GeneticSearch(transformer)
-    proposal = gs.search(fit_function_bool)
+    proposal = gs.suggest(fit_function_bool)
 
     assert 1 == proposal["x"]
 
@@ -117,7 +117,7 @@ def test_mixed_types():
     }
     transformer = HyperTransformer(api_config)
     gs = GeneticSearch(transformer)
-    proposal = gs.search(fit_function_mixed_type)
+    proposal = gs.suggest(fit_function_mixed_type)
     assert (
         pytest.approx(-1, 0.1) == proposal["x"]
         and 1 == proposal["b"]
