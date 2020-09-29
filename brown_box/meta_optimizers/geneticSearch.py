@@ -164,25 +164,12 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
         for param_i, (param_name, param_info) in enumerate(
             self.transformer.api_config.items()
         ):
-            if param_info["type"] in ["cat"]:
-                number_of_categories = len(param_info["values"])
-                pop0_cat, r0_cat, r1_cat = [
-                    min(
-                        int(self.population[i][param_i] * number_of_categories),
-                        number_of_categories,
-                    )
-                    for i in [0, r0, r1]
-                ]
-                new_pop_member = self._maybe_switch_different(
-                    new_pop_member, param_i, r0, r1, pop0_cat, r0_cat, r1_cat
-                )
-            elif param_info["type"] == "bool":
-                pop0_bool, r0_bool, r1_bool = [
-                    int(self.population[i][param_i] >= 0.5) for i in [0, r0, r1]
-                ]
-                new_pop_member = self._maybe_switch_different(
-                    new_pop_member, param_i, r0, r1, pop0_bool, r0_bool, r1_bool
-                )
+            if param_info["type"] in ["cat", "bool"]:
+                random_number = self.random_number_generator.random_sample(1)[0]
+                if random_number < self.scale:
+                    new_pop_member[param_i] = self.random_number_generator.random_sample(1)[0]
+                else:
+                    new_pop_member[param_i] = self.population[0][param_i]
 
         return new_pop_member
 
