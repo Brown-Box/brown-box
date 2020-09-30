@@ -4,7 +4,7 @@ from typing import Optional
 import numpy as np
 from scipy.optimize._differentialevolution import DifferentialEvolutionSolver
 
-from brown_box_package.brown_box.utils.hyper_transformer import HyperTransformer
+from ..utils import HyperTransformer
 
 
 class GeneticSearch:
