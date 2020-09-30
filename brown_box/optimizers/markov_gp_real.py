@@ -99,9 +99,11 @@ class MarkovGaussianProcessReal(AbstractOptimizer):
         """
         obs_y = []
         for _X, _y in zip(X, y):
-            if np.isfinite(_y): 
-                self.known_points.append(_X)
+            self.known_points.append(_X)
+            if np.isfinite(_y):
                 obs_y.append(_y)
+            else:
+                obs_y.append(np.iinfo(np.int32).max)
         self.known_values = np.concatenate([self.known_values, obs_y])
 
 
