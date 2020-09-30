@@ -171,17 +171,3 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
                     new_pop_member[param_i] = self.population[0][param_i]
 
         return new_pop_member
-
-    def _maybe_switch_different(
-        self, pop_member, param_i, r0, r1, pop0_val, r0_val, r1_val
-    ):
-        if r0_val != r1_val:
-            random_number = self.random_number_generator.random_sample(1)[0]
-            if random_number < self.scale:
-                if pop0_val != r0_val:
-                    pop_member[param_i] = self.population[r0][param_i]
-                else:
-                    pop_member[param_i] = self.population[r1][param_i]
-            else:
-                pop_member[param_i] = self.population[0][param_i]
-        return pop_member
