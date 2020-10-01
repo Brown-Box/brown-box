@@ -17,6 +17,11 @@ def basic_fit_function_10(values):
     return abs(x - 1)
 
 
+def more_better_fit_function(values):
+    x = values[0]
+    return - x
+
+
 def fit_function_cat(values):
     cat_value = values
     if np.array_equal([1.0, 0.0, 0.0], cat_value):
@@ -123,3 +128,18 @@ def test_mixed_types():
         and 1 == proposal["b"]
         and "exp" == proposal["c"]
     )
+
+
+def test_bounds_log():
+    min_max_iter = 10
+    max_max_iter = 5000
+    api_config = {
+        "max_iter": {"type": "int", "space": "log", "range": (min_max_iter, max_max_iter)},
+    }
+    transformer = HyperTransformer(api_config)
+    gs = GeneticSearch(transformer)
+    for i in range(10):
+        proposal = gs.suggest(more_better_fit_function, seed=i)
+        print(proposal)
+        assert min_max_iter <= proposal["max_iter"] <= max_max_iter
+        # TODO you should get 5000 here ideally (there is some rounding/transformation error) (similar for minimum)
