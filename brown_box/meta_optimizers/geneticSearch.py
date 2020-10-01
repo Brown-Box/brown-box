@@ -87,7 +87,7 @@ class GeneticSearch:
                 value = np.array([population_member[i]])
             # TODO ask Kuba how to process int. Is rounding right?
             elif param_info["type"] == "int":
-                value = np.array([int(round(population_member[i]))])
+                value = np.array([population_member[i]])
             elif param_info["type"] == "cat":
                 number_of_categories = len(param_info["values"])
                 cat_pos = min(
@@ -169,5 +169,10 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
                     new_pop_member[param_i] = self.random_number_generator.random_sample(1)[0]
                 else:
                     new_pop_member[param_i] = self.population[0][param_i]
-
+            else:
+                # TODO udelat to nejak elegantneji pres numpy
+                if new_pop_member[param_i] < self.limits[0][param_i]:
+                    new_pop_member[param_i] = self.limits[0][param_i]
+                if new_pop_member[param_i] > self.limits[1][param_i]:
+                    new_pop_member[param_i] = self.limits[1][param_i]
         return new_pop_member
