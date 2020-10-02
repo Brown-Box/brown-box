@@ -4,7 +4,7 @@ from typing import Optional
 import numpy as np
 from scipy.optimize._differentialevolution import DifferentialEvolutionSolver
 
-from brown_box_package.brown_box.utils.hyper_transformer import HyperTransformer
+from ..utils import HyperTransformer
 
 
 class GeneticSearch:
@@ -15,7 +15,6 @@ class GeneticSearch:
         self._timeout = None
         self._timeout_passed = None
 
-    # TODO move fit function here
     def suggest(
         self, fit_function: callable, seed: int = 42, timeout: Optional[int] = None
     ) -> dict:
@@ -63,7 +62,7 @@ class GeneticSearch:
         if len(real_params.shape) == 1:
             real_params = np.array([real_params])
         result = self._transformer.to_hyper_space(real_params)
-        result = {key: val[0] for key, val in result.items()}
+        result = {key: val[0][0] if type(val) is np.ndarray else val[0] for key, val in result.items()}
 
         return result
 
@@ -88,7 +87,7 @@ class GeneticSearch:
                 value = np.array([population_member[i]])
             # TODO ask Kuba how to process int. Is rounding right?
             elif param_info["type"] == "int":
-                value = np.array([int(round(population_member[i]))])
+                value = np.array([population_member[i]])
             elif param_info["type"] == "cat":
                 number_of_categories = len(param_info["values"])
                 cat_pos = min(
@@ -164,38 +163,16 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
         for param_i, (param_name, param_info) in enumerate(
             self.transformer.api_config.items()
         ):
-            if param_info["type"] in ["cat"]:
-                number_of_categories = len(param_info["values"])
-                pop0_cat, r0_cat, r1_cat = [
-                    min(
-                        int(self.population[i][param_i] * number_of_categories),
-                        number_of_categories,
-                    )
-                    for i in [0, r0, r1]
-                ]
-                new_pop_member = self._maybe_switch_different(
-                    new_pop_member, param_i, r0, r1, pop0_cat, r0_cat, r1_cat
-                )
-            elif param_info["type"] == "bool":
-                pop0_bool, r0_bool, r1_bool = [
-                    int(self.population[i][param_i] >= 0.5) for i in [0, r0, r1]
-                ]
-                new_pop_member = self._maybe_switch_different(
-                    new_pop_member, param_i, r0, r1, pop0_bool, r0_bool, r1_bool
-                )
-
-        return new_pop_member
-
-    def _maybe_switch_different(
-        self, pop_member, param_i, r0, r1, pop0_val, r0_val, r1_val
-    ):
-        if r0_val != r1_val:
-            random_number = self.random_number_generator.random_sample(1)[0]
-            if random_number < self.scale:
-                if pop0_val != r0_val:
-                    pop_member[param_i] = self.population[r0][param_i]
+            if param_info["type"] in ["cat", "bool"]:
+                random_number = self.random_number_generator.random_sample(1)[0]
+                if random_number < self.scale:
+                    new_pop_member[param_i] = self.random_number_generator.random_sample(1)[0]
                 else:
-                    pop_member[param_i] = self.population[r1][param_i]
+                    new_pop_member[param_i] = self.population[0][param_i]
             else:
-                pop_member[param_i] = self.population[0][param_i]
-        return pop_member
+                # TODO udelat to nejak elegantneji pres numpy
+                if new_pop_member[param_i] < self.limits[0][param_i]:
+                    new_pop_member[param_i] = self.limits[0][param_i]
+                if new_pop_member[param_i] > self.limits[1][param_i]:
+                    new_pop_member[param_i] = self.limits[1][param_i]
+        return new_pop_member
