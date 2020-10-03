@@ -1,0 +1,187 @@
+# %%
+from itertools import chain
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import cm, colors, rcParams
+from bayesmark.sklearn_funcs import SklearnModel
+
+import bayesmark.constants as cc
+import bayesmark.xr_util as xru
+from bayesmark.serialize import XRSerializer
+from bayesmark.constants import (
+    ITER,
+    METHOD,
+    ARG_DELIM,
+    OBJECTIVE,
+    VISIBLE_TO_OPT,
+)
+from bayesmark.path_util import abspath
+from bayesmark.util import preimage_func
+from brown_box.cost_functions import ucb_real, poi_real, ei_real
+from brown_box.optimizers import MarkovGaussianProcessReal
+
+from numpy.random import RandomState
+
+BATCH_SIZE = 8
+
+# %% [markdown]
+# Define plot function to show current shape of GP approximation
+# %%
+def plot_GP(optimizer, X, y, hyper_points=None, n_pixels=500, fig=None):
+    _n_estimators = np.linspace(optimizer.tr._lb[0], optimizer.tr._ub[0], n_pixels)
+    _learning_rates = np.logspace(optimizer.tr._lb[1], optimizer.tr._ub[1], n_pixels)
+
+    gp = optimizer._gp()
+    gp.fit(X, y)
+
+    _X = np.column_stack([np.tile(_n_estimators, n_pixels), np.repeat(_learning_rates, n_pixels)])
+    _y = gp.predict(_X)
+    _fig = fig or plt.figure(figsize=(10,10))
+    if fig is not None:
+        plt.figure(fig.number)
+    ax = plt.imshow(_y.reshape(n_pixels, n_pixels))
+    x_positions = np.arange(0, n_pixels)[::50]
+    x_labels = [f"{int(_s)}" for _s in _n_estimators[::50]]
+    plt.xticks(x_positions, x_labels)
+    y_positions = np.arange(0, n_pixels)[::50]
+    y_labels = [f"{_s:.2g}" for _s in _learning_rates[::50]]
+    plt.yticks(y_positions, y_labels)
+    plt.xlabel("n_estimators")
+    plt.ylabel("learning_rate")
+    plt.title("Model values")
+    if hyper_points is not None:
+        plot_hyper_points(optimizer, hyper_points, n_pixels)
+    _fig.colorbar(ax)
+    if fig is None:
+        _fig.show()
+    return _fig
+
+def plot_cost(cost, optimizer, X, y, hyper_points=None, n_pixels=500, fig=None):
+    _n_estimators = np.linspace(optimizer.tr._lb[0], optimizer.tr._ub[0], n_pixels)
+    _learning_rates = np.logspace(optimizer.tr._lb[1], optimizer.tr._ub[1], n_pixels)
+    gp = optimizer._gp()
+    gp.fit(X, y)
+
+    _cost = cost(
+                gp,
+                optimizer.tr,
+                max_y=max(y),
+                min_y=min(y),
+                xi=0.1,
+                kappa=2.6,
+            )
+    _X = np.column_stack([np.tile(_n_estimators, n_pixels), np.repeat(_learning_rates, n_pixels)])
+    _y = _cost(_X)
+    _fig = fig or plt.figure(figsize=(10,10))
+    if fig is not None:
+        plt.figure(fig.number)
+    ax = plt.imshow(_y.reshape(n_pixels, n_pixels))
+    x_positions = np.arange(0, n_pixels)[::50]
+    x_labels = [f"{int(_s)}" for _s in _n_estimators[::50]]
+    plt.xticks(x_positions, x_labels)
+    y_positions = np.arange(0, n_pixels)[::50]
+    y_labels = [f"{_s:.4f}" for _s in _learning_rates[::50]]
+    plt.yticks(y_positions, y_labels)
+    plt.xlabel("n_estimators")
+    plt.ylabel("learning_rate")
+    plt.title(f"Cost function: {cost.__name__}")
+    if hyper_points is not None:
+        plot_hyper_points(optimizer, hyper_points, n_pixels)
+    _fig.colorbar(ax)
+    if fig is None:
+        _fig.show()
+    return _fig
+
+def plot_hyper_points(optimizer, points, n_pixels):
+    for point_id, point in enumerate(points):
+        x = (point["n_estimators"] - optimizer.tr._lb[0])/(optimizer.tr._ub[0] - optimizer.tr._lb[0])*n_pixels
+        y = (np.log10(point["learning_rate"]) - optimizer.tr._lb[1])/(optimizer.tr._ub[1] - optimizer.tr._lb[1])*n_pixels
+        plt.text(x, y, f"{point_id+1}",bbox=dict(facecolor='white', alpha=0.75))
+# %%[markdown]
+# ## Define problem
+# We have selected `ada` optimizer on dataset `wine` with `nll` metric.
+# Optimizer was selected with respect to number of hyperparameters (althought it is slower to evaluate)
+# %%
+rnd = RandomState(seed=42)
+np.random.seed(42)
+problem = SklearnModel(
+    "ada", "wine", "nll", data_root="/mnt/workspace/output/run_fixed"
+)
+optimizer = MarkovGaussianProcessReal(
+    problem.api_config, random=rnd, cost=ucb_real
+)
+# %%[markdown]
+# ## Step 1 (initialize without inspection)
+INIT_STEPS=4
+# %%
+visible_to_opt = []
+generalization = []
+suggestions = []
+for _ in range(INIT_STEPS):
+    _suggestions = optimizer.suggest(BATCH_SIZE)
+    responses = []
+    for suggestion in _suggestions:
+        responses.append(problem.evaluate(suggestion))
+    responses = np.asarray(responses)
+    _visible_to_opt = responses[:, 0]
+    _generalization = responses[:, 1]
+    optimizer.observe(suggestions, _visible_to_opt)
+    visible_to_opt = np.concatenate([visible_to_opt, _visible_to_opt])
+    generalization = np.concatenate([generalization, _generalization])
+    suggestions += _suggestions
+
+
+# %% [markdown]
+# ## Plot model and costs
+# %%
+_known_points = {k: [dic[k] for dic in suggestions] for k in suggestions[0]}
+X = optimizer.tr.to_real_space(**_known_points)
+plot_GP(optimizer, X, visible_to_opt, suggestions)
+plot_cost(ucb_real, optimizer, X, visible_to_opt, suggestions)
+plot_cost(ei_real, optimizer, X, visible_to_opt, suggestions)
+plot_cost(poi_real, optimizer, X, visible_to_opt, suggestions)
+suggestions
+
+# %%[markdown]
+# ## Step 2 (with GP)
+# %%
+_suggestions = optimizer.suggest(BATCH_SIZE)
+# %% [markdown]
+# ## Suggested points
+# %%
+plot_cost(ucb_real, optimizer, X, visible_to_opt, _suggestions)
+_suggestions
+# %% [markdown]
+# ## Calculate respective responses
+# %%
+responses = []
+for suggestion in _suggestions:
+    responses.append(problem.evaluate(suggestion))
+responses = np.asarray(responses)
+_visible_to_opt = responses[:, 0]
+_generalization = responses[:, 1]
+# %% [markdown]
+# ## Differences between model and real values
+# %%
+gp = optimizer._gp()
+_M = {k: [dic[k] for dic in _suggestions] for k in _suggestions[0]}
+M = optimizer.tr.to_real_space(**_M)
+gp.fit(X, visible_to_opt)
+_model_values = gp.predict(M)
+print(f"Mean absolute error: {abs(_model_values - _visible_to_opt).mean():.3f}")
+print(f"Mean square error: {((_model_values - _visible_to_opt)**2).mean():.3f}")
+# %% [markdown]
+# ## Updated model
+# %%
+_known_points = {k: [dic[k] for dic in chain(suggestions, _suggestions)] for k in suggestions[0]}
+X = optimizer.tr.to_real_space(**_known_points)
+y = np.asarray(list(chain(visible_to_opt, _visible_to_opt)))
+f=plot_GP(optimizer, X, y, chain(suggestions, _suggestions))
+# %% [markdown]
+# ## Updated losses
+# %%
+plot_cost(ucb_real, optimizer, X, y, chain(suggestions, _suggestions))
+plot_cost(ei_real, optimizer, X, y, chain(suggestions, _suggestions))
+f=plot_cost(poi_real, optimizer, X, y, chain(suggestions, _suggestions))
+
+# %%
