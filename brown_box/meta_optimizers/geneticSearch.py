@@ -4,7 +4,7 @@ from typing import Optional
 import numpy as np
 from scipy.optimize._differentialevolution import DifferentialEvolutionSolver
 
-from ..utils import HyperTransformer
+from ..utils import HyperTransformer, spec_to_bound
 
 
 class GeneticSearch:
@@ -21,11 +21,9 @@ class GeneticSearch:
         bounds = []
         for param_name, param_info in self._api_config.items():
             if param_info["type"] in ["real", "int"]:
-                real_range = self._transformer._reals[param_name](param_info["range"])
-                bounds.append([val for val in real_range])
-            elif param_info["type"] == "cat":
-                bounds.append((0, 1))
-            elif param_info["type"] == "bool":
+                real_range = spec_to_bound(param_info)
+                bounds.append((real_range[0][0][()], real_range[1][0][()]))
+            elif param_info["type"] in ["cat", "bool"]:
                 bounds.append((0, 1))
             else:
                 param_type = param_info["type"]
