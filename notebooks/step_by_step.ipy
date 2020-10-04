@@ -1,33 +1,39 @@
 # %%
 from itertools import chain
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import cm, colors, rcParams
+import pandas as pd
+
+import plotly.express as px
+import plotly.graph_objects as go
 from bayesmark.sklearn_funcs import SklearnModel
 
-import bayesmark.constants as cc
-import bayesmark.xr_util as xru
-from bayesmark.serialize import XRSerializer
-from bayesmark.constants import (
-    ITER,
-    METHOD,
-    ARG_DELIM,
-    OBJECTIVE,
-    VISIBLE_TO_OPT,
-)
-from bayesmark.path_util import abspath
-from bayesmark.util import preimage_func
 from brown_box.cost_functions import ucb_real, poi_real, ei_real
 from brown_box.optimizers import MarkovGaussianProcessReal
 
 from numpy.random import RandomState
 
 BATCH_SIZE = 8
+# %%
+%%javascript
+//hack to fix export
+require.config({
+  paths: {
+    d3: 'https://cdnjs.cloudflare.com/ajax/libs/d3/5.9.2/d3',
+    jquery: 'https://code.jquery.com/jquery-3.4.1.min',
+    plotly: 'https://cdn.plot.ly/plotly-latest.min'
+  },
 
+  shim: {
+    plotly: {
+      deps: ['d3', 'jquery'],
+      exports: 'plotly'
+    }
+  }
+});
 # %% [markdown]
 # Define plot function to show current shape of GP approximation
 # %%
-def plot_GP(optimizer, X, y, hyper_points=None, n_pixels=500, fig=None):
+def plot_GP(optimizer, X, y, hyper_points=None, n_pixels=500):
     _n_estimators = np.linspace(optimizer.tr._lb[0], optimizer.tr._ub[0], n_pixels)
     _learning_rates = np.logspace(optimizer.tr._lb[1], optimizer.tr._ub[1], n_pixels)
 
@@ -36,27 +42,42 @@ def plot_GP(optimizer, X, y, hyper_points=None, n_pixels=500, fig=None):
 
     _X = np.column_stack([np.tile(_n_estimators, n_pixels), np.repeat(_learning_rates, n_pixels)])
     _y = gp.predict(_X)
-    _fig = fig or plt.figure(figsize=(10,10))
-    if fig is not None:
-        plt.figure(fig.number)
-    ax = plt.imshow(_y.reshape(n_pixels, n_pixels))
-    x_positions = np.arange(0, n_pixels)[::50]
-    x_labels = [f"{int(_s)}" for _s in _n_estimators[::50]]
-    plt.xticks(x_positions, x_labels)
-    y_positions = np.arange(0, n_pixels)[::50]
-    y_labels = [f"{_s:.2g}" for _s in _learning_rates[::50]]
-    plt.yticks(y_positions, y_labels)
-    plt.xlabel("n_estimators")
-    plt.ylabel("learning_rate")
-    plt.title("Model values")
-    if hyper_points is not None:
-        plot_hyper_points(optimizer, hyper_points, n_pixels)
-    _fig.colorbar(ax)
-    if fig is None:
-        _fig.show()
-    return _fig
 
-def plot_cost(cost, optimizer, X, y, hyper_points=None, n_pixels=500, fig=None):
+    hyper_df = pd.DataFrame(hyper_points)
+
+    fig = px.scatter(
+        hyper_df, 
+        x='n_estimators', 
+        y='learning_rate',
+        text=hyper_df.index+1,
+        size=[0]*len(hyper_df),
+        hover_name=[f"Id: {idx}" for idx in hyper_df.index],
+        log_y=True,
+        range_x=(optimizer.tr._lb[0], optimizer.tr._ub[0]),
+        range_y=(0.0001, 10),
+        width=n_pixels,
+        height=n_pixels,
+    )
+    fig.add_trace(
+        go.Heatmap(
+            x=_n_estimators,
+            y=_learning_rates,
+            z=_y.reshape(n_pixels, n_pixels),
+            opacity=0.75,
+            colorscale='RdBu',
+        )
+    )
+    fig.update_layout(
+        legend_orientation='h',
+        title='Model values',
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='black')
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='black')
+    return fig
+
+def plot_cost(cost, optimizer, X, y, hyper_points=None, n_pixels=500):
     _n_estimators = np.linspace(optimizer.tr._lb[0], optimizer.tr._ub[0], n_pixels)
     _learning_rates = np.logspace(optimizer.tr._lb[1], optimizer.tr._ub[1], n_pixels)
     gp = optimizer._gp()
@@ -72,31 +93,40 @@ def plot_cost(cost, optimizer, X, y, hyper_points=None, n_pixels=500, fig=None):
             )
     _X = np.column_stack([np.tile(_n_estimators, n_pixels), np.repeat(_learning_rates, n_pixels)])
     _y = _cost(_X)
-    _fig = fig or plt.figure(figsize=(10,10))
-    if fig is not None:
-        plt.figure(fig.number)
-    ax = plt.imshow(_y.reshape(n_pixels, n_pixels))
-    x_positions = np.arange(0, n_pixels)[::50]
-    x_labels = [f"{int(_s)}" for _s in _n_estimators[::50]]
-    plt.xticks(x_positions, x_labels)
-    y_positions = np.arange(0, n_pixels)[::50]
-    y_labels = [f"{_s:.4f}" for _s in _learning_rates[::50]]
-    plt.yticks(y_positions, y_labels)
-    plt.xlabel("n_estimators")
-    plt.ylabel("learning_rate")
-    plt.title(f"Cost function: {cost.__name__}")
-    if hyper_points is not None:
-        plot_hyper_points(optimizer, hyper_points, n_pixels)
-    _fig.colorbar(ax)
-    if fig is None:
-        _fig.show()
-    return _fig
 
-def plot_hyper_points(optimizer, points, n_pixels):
-    for point_id, point in enumerate(points):
-        x = (point["n_estimators"] - optimizer.tr._lb[0])/(optimizer.tr._ub[0] - optimizer.tr._lb[0])*n_pixels
-        y = (np.log10(point["learning_rate"]) - optimizer.tr._lb[1])/(optimizer.tr._ub[1] - optimizer.tr._lb[1])*n_pixels
-        plt.text(x, y, f"{point_id+1}",bbox=dict(facecolor='white', alpha=0.75))
+    hyper_df = pd.DataFrame(hyper_points)
+
+    fig = px.scatter(
+        hyper_df, 
+        x='n_estimators', 
+        y='learning_rate',
+        text=hyper_df.index+1,
+        size=[0]*len(hyper_df),
+        hover_name=[f"Id: {idx}" for idx in hyper_df.index],
+        log_y=True,
+        range_x=(optimizer.tr._lb[0], optimizer.tr._ub[0]),
+        range_y=(0.0001, 10),
+        width=n_pixels,
+        height=n_pixels,
+    )
+    fig.add_trace(
+        go.Heatmap(
+            x=_n_estimators,
+            y=_learning_rates,
+            z=_y.reshape(n_pixels, n_pixels),
+            opacity=0.75,
+            colorscale='RdBu',
+        )
+    )
+    fig.update_layout(
+        legend_orientation='h',
+        title=f"Cost function {cost.__name__}",
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='black')
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='black')
+    return fig
 # %%[markdown]
 # ## Define problem
 # We have selected `ada` optimizer on dataset `wine` with `nll` metric.
@@ -112,7 +142,7 @@ optimizer = MarkovGaussianProcessReal(
 )
 # %%[markdown]
 # ## Step 1 (initialize without inspection)
-INIT_STEPS=4
+INIT_STEPS=1
 # %%
 visible_to_opt = []
 generalization = []
@@ -137,9 +167,13 @@ for _ in range(INIT_STEPS):
 _known_points = {k: [dic[k] for dic in suggestions] for k in suggestions[0]}
 X = optimizer.tr.to_real_space(**_known_points)
 plot_GP(optimizer, X, visible_to_opt, suggestions)
+# %%
 plot_cost(ucb_real, optimizer, X, visible_to_opt, suggestions)
+# %%
 plot_cost(ei_real, optimizer, X, visible_to_opt, suggestions)
+# %%
 plot_cost(poi_real, optimizer, X, visible_to_opt, suggestions)
+# %%
 suggestions
 
 # %%[markdown]
