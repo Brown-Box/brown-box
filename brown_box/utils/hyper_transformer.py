@@ -138,12 +138,15 @@ def hardmax(points):
     hard[range(idx.size), idx] = 1
     return hard
 
-
-def real_random(lb, ub):
-    def _uniform(n, rnd_state):
-        return rnd_state.uniform(lb, ub, n)
-
-    return _uniform
+def real_random(lb, ub, _type):
+    if _type == "real":
+        def _uniform(n, rnd_state):
+            return rnd_state.uniform(lb, ub, n)
+        return _uniform
+    else:
+        def _uniform(n, rnd_state):
+            return rnd_state.randint(lb, ub, n).astype(np.float)
+        return _uniform
 
 
 def bool_random():
@@ -183,7 +186,7 @@ class HyperTransformer:
                 self._hypers[key] = CONT_HYPER[_type][_space]
                 self._coercs.append(cont_coerc(spec))
                 self._slices[key] = slice(_col, _col + 1)
-                self._randoms.append(real_random(lb, ub))
+                self._randoms.append(real_random(lb, ub, _type))
                 _col += 1
             if _type == "bool":
                 self._reals[key] = lambda x: np.asarray(x, np.float)
