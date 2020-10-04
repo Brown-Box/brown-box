@@ -2,14 +2,13 @@ import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern
 
-import bayesmark.random_search as rs
 from bayesmark import np_util
 from bayesmark.experiment import experiment_main
 
 from .brown_box_abstract_optimizer import BrownBoxAbstractOptimizer
 from ..cost_functions import ei
 from ..meta_optimizers import RandomOptimizer
-from ..utils import DiscreteKernel, HyperTransformer
+from ..utils import DiscreteKernel
 
 
 class MarkovGaussianProcess(BrownBoxAbstractOptimizer):
@@ -25,10 +24,7 @@ class MarkovGaussianProcess(BrownBoxAbstractOptimizer):
         api_config : dict-like of dict-like
             Configuration of the optimization variables. See API description.
         """
-        super().__init__(self, api_config)
-        self._api_config = api_config
-        self._random_state = random
-        self.tr = HyperTransformer(api_config)
+        super().__init__(api_config, random)
         self._cost = cost
         self._meta_optimizer = meta_optimizer
 
@@ -51,8 +47,7 @@ class MarkovGaussianProcess(BrownBoxAbstractOptimizer):
             corresponds to a parameter being optimized.
         """
         if len(self.known_points) < 2:
-            x_guess = rs.suggest_dict([], [], self._api_config, n_suggestions=n_suggestions, random=self._random_state)
-            return x_guess
+            return self.random_suggestion(n_suggestions)
 
         new_points = []
         new_values = []

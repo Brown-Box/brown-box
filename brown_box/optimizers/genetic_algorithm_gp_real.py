@@ -2,7 +2,6 @@ import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern
 
-import bayesmark.random_search as rs
 from bayesmark import np_util
 from bayesmark.experiment import experiment_main
 
@@ -43,14 +42,7 @@ class GAMarkovGaussianProcessReal(MarkovGaussianProcessReal):
             corresponds to a parameter being optimized.
         """
         if len(self.known_points) < 2:
-            x_guess = rs.suggest_dict(
-                [],
-                [],
-                self._api_config,
-                n_suggestions=n_suggestions,
-                random=self._random_state,
-            )
-            return x_guess
+            return self.random_suggestion(n_suggestions)
 
         new_points = []
         new_values = []
