@@ -19,6 +19,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         api_config,
         random=np_util.random,
         meta_optimizer=SciPyOptimizer,
+        kernel=Matern(nu=2.5),
         cost=ei_real,
     ):
         """This optimizes samples multiple suggestions from Gaussian Process.
@@ -33,6 +34,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         super().__init__(api_config, random)
         self._cost = cost
         self._meta_optimizer = meta_optimizer
+        self.kernel=kernel
 
     def suggest(self, n_suggestions=1):
         """Make `n_suggestions` suggestions for what to evaluate next.
@@ -91,7 +93,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
 
     def _gp(self):
         return GaussianProcessRegressor(
-            kernel=DiscreteKernel(Matern(nu=2.5), self.tr),
+            kernel=DiscreteKernel(self.kernel, self.tr),
             alpha=1e-6,
             normalize_y=True,
             n_restarts_optimizer=5,
