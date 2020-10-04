@@ -21,13 +21,18 @@ class GeneticSearch:
         bounds = []
         for param_name, param_info in self._api_config.items():
             if param_info["type"] in ["real", "int"]:
-                real_range = spec_to_bound(param_info)
-                bounds.append((real_range[0][0][()], real_range[1][0][()]))
+                if "range" in param_info:
+                    real_range = spec_to_bound(param_info)
+                    ga_bound_value = (real_range[0][0][()], real_range[1][0][()])
+                else:
+                    ga_bound_value = (0, 1)
             elif param_info["type"] in ["cat", "bool"]:
-                bounds.append((0, 1))
+                ga_bound_value = (0, 1)
             else:
                 param_type = param_info["type"]
                 raise ValueError(f"Unknown parameter type {param_type}")
+
+            bounds.append(ga_bound_value)
 
         if timeout:
             self._start_time = time()
@@ -60,7 +65,10 @@ class GeneticSearch:
         if len(real_params.shape) == 1:
             real_params = np.array([real_params])
         result = self._transformer.to_hyper_space(real_params)
-        result = {key: val[0][0] if type(val) is np.ndarray else val[0] for key, val in result.items()}
+        result = {
+            key: val[0][0] if type(val) is np.ndarray else val[0]
+            for key, val in result.items()
+        }
 
         return result
 
@@ -81,16 +89,22 @@ class GeneticSearch:
     def _GA_to_real(self, population_member):
         real_params = []
         for i, (param_name, param_info) in enumerate(self._api_config.items()):
-            if param_info["type"] == "real":
-                value = np.array([population_member[i]])
-            # TODO ask Kuba how to process int. Is rounding right?
-            elif param_info["type"] == "int":
-                value = np.array([population_member[i]])
+            if param_info["type"] in ["real", "int"]:
+                if "range" in param_info:
+                    value = np.array([population_member[i]])
+                else:
+                    number_of_categories = len(param_info["values"])
+                    cat_pos = min(
+                        int(population_member[i] * number_of_categories),
+                        number_of_categories - 1,
+                    )
+                    hypervalue = param_info["values"][cat_pos]
+                    value = self._transformer._reals[param_name]([hypervalue])
             elif param_info["type"] == "cat":
                 number_of_categories = len(param_info["values"])
                 cat_pos = min(
                     int(population_member[i] * number_of_categories),
-                    number_of_categories,
+                    number_of_categories - 1,
                 )
                 hypervalue = param_info["values"][cat_pos]
                 value = self._transformer._reals[param_name]([hypervalue])[0]
@@ -161,10 +175,15 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
         for param_i, (param_name, param_info) in enumerate(
             self.transformer.api_config.items()
         ):
-            if param_info["type"] in ["cat", "bool"]:
+            if param_info["type"] in ["cat", "bool"] or (
+                param_info["type"] in ["real", "int"] and "values" in param_info
+            ):
                 random_number = self.random_number_generator.random_sample(1)[0]
+                a = random_number < self.scale
                 if random_number < self.scale:
-                    new_pop_member[param_i] = self.random_number_generator.random_sample(1)[0]
+                    new_pop_member[
+                        param_i
+                    ] = self.random_number_generator.random_sample(1)[0]
                 else:
                     new_pop_member[param_i] = self.population[0][param_i]
 
