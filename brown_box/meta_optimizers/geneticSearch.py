@@ -169,10 +169,8 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
                     new_pop_member[param_i] = self.random_number_generator.random_sample(1)[0]
                 else:
                     new_pop_member[param_i] = self.population[0][param_i]
-            else:
-                # TODO udelat to nejak elegantneji pres numpy
-                if new_pop_member[param_i] < self.limits[0][param_i]:
-                    new_pop_member[param_i] = self.limits[0][param_i]
-                if new_pop_member[param_i] > self.limits[1][param_i]:
-                    new_pop_member[param_i] = self.limits[1][param_i]
+
+        new_pop_member[new_pop_member < 0] = 1
+        new_pop_member[new_pop_member > 1] = 1
+
         return new_pop_member
