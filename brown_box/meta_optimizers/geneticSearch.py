@@ -172,6 +172,10 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
         new_pop_member = self.population[0] + self.scale * (
             self.population[r0] - self.population[r1]
         )
+        # neni nahoda lepsi? + optimalizuj for cyklus
+        # r = 2 * self.random_number_generator.random_sample(1)[0] - 1
+        # new_pop_member = self.population[0] + self.scale * r
+
         for param_i, (param_name, param_info) in enumerate(
             self.transformer.api_config.items()
         ):
@@ -187,7 +191,6 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
                 else:
                     new_pop_member[param_i] = self.population[0][param_i]
 
-        new_pop_member[new_pop_member < 0] = 1
-        new_pop_member[new_pop_member > 1] = 1
+        new_pop_member = np.clip(new_pop_member, 0, 1)
 
         return new_pop_member
