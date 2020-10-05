@@ -60,7 +60,7 @@ visible_to_opt = responses[:, 0]
 generalization = responses[:, 1]
 # %%
 gp = GaussianProcessRegressor(
-    kernel=DiscreteKernel(Matern(length_scale=[5.0, 0.25], nu=2.5), tr),
+    kernel=DiscreteKernel(Matern(length_scale=[50.0, 50.25], nu=2.5), tr),
     alpha=1e-10,
     normalize_y=True,
     n_restarts_optimizer=5,

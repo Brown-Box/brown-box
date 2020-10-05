@@ -12,30 +12,32 @@ from brown_box.utils import DiscreteKernel, HyperTransformer
 
 from numpy.random import RandomState
 from brown_box.optimizers import MarkovGaussianProcessReal
+from brown_box.meta_optimizers.scipy_optimizer import SciPyOptimizerNonRandom
 
 import matplotlib.pyplot as plt
 N_ITER=16
 N_BATCH=8
 # %%
 kernels = {
-    "current: Matern(nu=2.5)": Matern(nu=2.5),
-    "Matern()": Matern(),
-    "RBF()": RBF(),
-    "Matern(length_scale=[1.0, 0.1])": Matern(length_scale=[1.0, 0.1]),
-    "RBF(length_scale=[1.0, 0.1])": RBF(length_scale=[1.0, 0.1]),
-    "Matern(length_scale=[5.0, 0.25], nu=2.5)": Matern(length_scale=[5.0, 0.25], nu=2.5),
-    "Matern(length_scale=[5.0, 0.25], nu=0.5)": Matern(length_scale=[5.0, 0.25], nu=0.5),
-    "RBF(length_scale=[5.0, 0.25])": RBF(length_scale=[5.0, 0.25]),
+    # "current: Matern(nu=2.5)": Matern(nu=2.5),
+    # "Matern()": Matern(),
+    # "RBF()": RBF(),
+    # "Matern(length_scale=[1.0, 0.1])": Matern(length_scale=[1.0, 0.1]),
+    # "RBF(length_scale=[1.0, 0.1])": RBF(length_scale=[1.0, 0.1]),
+    # "Matern(length_scale=[5.0, 0.25], nu=2.5)": Matern(length_scale=[5.0, 0.25], nu=2.5),
+    # "Matern(length_scale=[5.0, 0.25], nu=0.5)": Matern(length_scale=[5.0, 0.25], nu=0.5),
+    # "RBF(length_scale=[5.0, 0.25])": RBF(length_scale=[5.0, 0.25]),
+    "Matern(length_scale=[10.0, 1], nu=2.5)": Matern(length_scale=[1.0, 1], nu=2.5),
 }
 # %%
 results = {}
 for name, kernel in tqdm(kernels.items()):
-    rnd = RandomState(seed=42)
-    np.random.seed(42)
+    rnd = RandomState(seed=41)
+    np.random.seed(41)
     problem = SklearnModel(
-        "ada", "wine", "nll", data_root="/mnt/workspace/output/run_fixed"
+        "ada", "wine", "acc", data_root="/mnt/workspace/output/run_fixed"
     )
-    optimizer = MarkovGaussianProcessReal(problem.api_config, random=rnd, cost=ucb_real)
+    optimizer = MarkovGaussianProcessReal(problem.api_config, random=rnd, cost=poi_real, meta_optimizer=SciPyOptimizerNonRandom)
     suggestions = []
     visible_to_opt = []
     generalization = []
@@ -62,4 +64,13 @@ for name, (_, visible, _) in results.items():
 plt.title("Minimum of visible_to_opt in batch; random seed 42")
 plt.legend(bbox_to_anchor=(1.1, 1.05))
 plt.show()
+# %%
+for name, (_, visible, _) in results.items():
+    x = np.arange(N_ITER*N_BATCH)
+    y = np.concatenate(visible)
+    plt.plot(x, y, label=name)
+plt.title("Minimum of visible_to_opt in batch; random seed 42")
+plt.legend(bbox_to_anchor=(1.1, 1.05))
+plt.show()
+
 # %%
