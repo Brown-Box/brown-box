@@ -74,13 +74,13 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
                 self.tr,
                 max_y=max(all_values),
                 min_y=min(all_values),
-                xi=0.1,
+                xi=0.11,
                 kappa=2.6,
             )
             meta_minimizer = self._meta_optimizer(
                 self.tr, self._random_state, cost_f
             )
-
+            meta_minimizer.observe(all_points, all_values)
             min_point = [meta_minimizer.suggest(timeout=0.4)]
             new_points += min_point
 
