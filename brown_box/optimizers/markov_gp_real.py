@@ -21,6 +21,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         meta_optimizer=SciPyOptimizer,
         kernel=Matern(nu=2.5),
         cost=ei_real,
+        iter_timeout=40.0
     ):
         """This optimizes samples multiple suggestions from Gaussian Process.
 
@@ -35,6 +36,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         self._cost = cost
         self._meta_optimizer = meta_optimizer
         self.kernel=kernel
+        self.iter_timeout = iter_timeout
 
     def suggest(self, n_suggestions=1):
         """Make `n_suggestions` suggestions for what to evaluate next.
@@ -81,7 +83,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
                 self.tr, self._random_state, cost_f
             )
             meta_minimizer.observe(all_points, all_values)
-            min_point = [meta_minimizer.suggest(timeout=0.4)]
+            min_point = [meta_minimizer.suggest(timeout=self.iter_timeout*0.9/n_suggestions)]
             new_points += min_point
 
             _p = {k: [dic[k] for dic in min_point] for k in min_point[0]}

@@ -69,7 +69,7 @@ class SciPyOptimizerNonRandom(AbstractOptimizer):
                 if c < c0:
                     c0 = c
                     x = self.tr.to_hyper_space(x1)
-                    print(_iter_c, c, x, dx)
+                    # print(_iter_c, c, x, dx)
             _iter_c += 1
         return {k:v[0][0] for k,v in x.items()}
 
