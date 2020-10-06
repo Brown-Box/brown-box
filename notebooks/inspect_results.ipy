@@ -1,0 +1,64 @@
+# %%
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import cm, colors, rcParams
+from bayesmark.sklearn_funcs import SklearnModel
+
+import bayesmark.constants as cc
+import bayesmark.xr_util as xru
+from bayesmark.serialize import XRSerializer
+from bayesmark.constants import (
+    ITER,
+    METHOD,
+    ARG_DELIM,
+    OBJECTIVE,
+    VISIBLE_TO_OPT,
+)
+from bayesmark.path_util import abspath
+from bayesmark.util import preimage_func
+
+# %%
+# User settings, must specify location of the data to make plots here for this to run
+DB_ROOT = abspath("/mnt/workspace/output")
+DBID = "run_20200930_205844"
+metric_for_scoring = VISIBLE_TO_OPT
+# %%
+summary_ds, meta = XRSerializer.load_derived(
+    DB_ROOT, db=DBID, key=cc.MEAN_SCORE
+)
+
+print(XRSerializer.get_keys(DB_ROOT, db=DBID))
+uuids = XRSerializer.get_uuids(DB_ROOT, db=DBID, key=cc.SUGGEST_LOG)
+print(uuids)
+print(XRSerializer.get_derived_keys(DB_ROOT, db=DBID))
+
+# %%
+baseline_ds, baseline_meta = XRSerializer.load_derived(DB_ROOT, db=DBID, key=cc.BASELINE)
+suggest_log, suggest_meta = XRSerializer.load(DB_ROOT, db=DBID, key=cc.SUGGEST_LOG, uuid_=uuids[0])
+eval_log, eval_meta = XRSerializer.load(DB_ROOT, db=DBID, key=cc.EVAL, uuid_=uuids[0])
+
+# %%
+suggest_df = suggest_log.to_dataframe()
+eval_df = eval_log.to_dataframe()
+suggest_df["_visible_to_opt"] = eval_df["_visible_to_opt"]
+sizes = np.asarray(suggest_df["_visible_to_opt"])
+sizes = 40-40*(sizes - sizes.min())/sizes.ptp()
+# %%
+plt.scatter(suggest_df["gamma"], np.log10(suggest_df["C"]), s=sizes)
+# %%
+plt.scatter(suggest_df["gamma"], suggest_df["tol"], s=sizes)
+
+# %%
+prob.evaluate({"C":13.292919,"gamma":0.000893, "tol":0.008472})
+
+# %%
+np.random.seed(42)
+prob = SklearnModel("SVM", "wine", "nll", data_root="/mnt/workspace/output/run_fixed")
+prob.evaluate({"C":13.292919,"gamma":0.000893, "tol":0.008472})
+
+# %%
+np.random.seed(42)
+prob = SklearnModel("ada", "wine", "nll", data_root="/mnt/workspace/output/run_fixed")
+prob.evaluate({"n_estimators":90,"learning_rate":0.01})
+
+# %%

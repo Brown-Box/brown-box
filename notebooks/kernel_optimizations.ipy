@@ -1,0 +1,76 @@
+# %%
+import numpy as np
+import pandas as pd
+from tqdm import tqdm
+
+from bayesmark.sklearn_funcs import SklearnModel
+
+from brown_box.cost_functions import ucb_real, poi_real, ei_real
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern, RBF, RationalQuadratic, ExpSineSquared
+from brown_box.utils import DiscreteKernel, HyperTransformer
+
+from numpy.random import RandomState
+from brown_box.optimizers import MarkovGaussianProcessReal
+from brown_box.meta_optimizers.scipy_optimizer import SciPyOptimizerNonRandom
+
+import matplotlib.pyplot as plt
+N_ITER=16
+N_BATCH=8
+# %%
+kernels = {
+    # "current: Matern(nu=2.5)": Matern(nu=2.5),
+    # "Matern()": Matern(),
+    # "RBF()": RBF(),
+    # "Matern(length_scale=[1.0, 0.1])": Matern(length_scale=[1.0, 0.1]),
+    # "RBF(length_scale=[1.0, 0.1])": RBF(length_scale=[1.0, 0.1]),
+    # "Matern(length_scale=[5.0, 0.25], nu=2.5)": Matern(length_scale=[5.0, 0.25], nu=2.5),
+    # "Matern(length_scale=[5.0, 0.25], nu=0.5)": Matern(length_scale=[5.0, 0.25], nu=0.5),
+    # "RBF(length_scale=[5.0, 0.25])": RBF(length_scale=[5.0, 0.25]),
+    "Matern(length_scale=[10.0, 1], nu=2.5)": Matern(length_scale=[5.0, 0.5], nu=2.5),
+}
+# %%
+results = {}
+for name, kernel in tqdm(kernels.items()):
+    rnd = RandomState(seed=41)
+    np.random.seed(41)
+    problem = SklearnModel(
+        "ada", "wine", "nll", data_root="/mnt/workspace/output/run_fixed"
+    )
+    optimizer = MarkovGaussianProcessReal(problem.api_config, random=rnd, cost=ei_real, meta_optimizer=SciPyOptimizerNonRandom, iter_timeout=10.0)
+    suggestions = []
+    visible_to_opt = []
+    generalization = []
+    for _iter in range(N_ITER):
+        _suggestions = optimizer.suggest(N_BATCH)
+        responses = []
+        for suggestion in _suggestions:
+            responses.append(problem.evaluate(suggestion))
+        suggestions += _suggestions
+        responses = np.asarray(responses)
+        optimizer.observe(_suggestions, responses[:, 0])
+        visible_to_opt.append(responses[:, 0])
+        generalization.append(responses[:, 1])
+    print(f"{name}: Minimal visible_to_opt: {min(min(vis)for vis in visible_to_opt):.4f}")
+    results[name] = (suggestions, visible_to_opt, generalization)
+# %%
+for name, (_, visible, _) in results.items():
+    x = np.arange(N_ITER)
+    yerr=[vis.std() for vis in visible]
+    y = [vis.mean() for vis in visible]
+    mins = [vis.min() for vis in visible]
+    #plt.errorbar(x=x, y=y, yerr=yerr)
+    plt.plot(x, mins, label=name)
+plt.title("Minimum of visible_to_opt in batch; random seed 42")
+plt.legend(bbox_to_anchor=(1.1, 1.05))
+plt.show()
+# %%
+for name, (_, visible, _) in results.items():
+    x = np.arange(N_ITER*N_BATCH)
+    y = np.concatenate(visible)
+    plt.plot(x, y, label=name)
+plt.title("Minimum of visible_to_opt in batch; random seed 42")
+plt.legend(bbox_to_anchor=(1.1, 1.05))
+plt.show()
+
+# %%

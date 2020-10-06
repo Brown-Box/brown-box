@@ -1,0 +1,136 @@
+# %%
+import numpy as np
+import pandas as pd
+
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from bayesmark.sklearn_funcs import SklearnModel
+
+from brown_box.cost_functions import ucb_real, poi_real, ei_real
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern, RBF, RationalQuadratic, ExpSineSquared
+from brown_box.utils import DiscreteKernel, HyperTransformer
+
+from numpy.random import RandomState
+from plot_utils.pyplot_plots import plot_GP, plot_suggestions
+# %%
+%%javascript
+//hack to fix export
+require.config({
+  paths: {
+    d3: 'https://cdnjs.cloudflare.com/ajax/libs/d3/5.9.2/d3',
+    jquery: 'https://code.jquery.com/jquery-3.4.1.min',
+    plotly: 'https://cdn.plot.ly/plotly-latest.min'
+  },
+
+  shim: {
+    plotly: {
+      deps: ['d3', 'jquery'],
+      exports: 'plotly'
+    }
+  }
+});
+# %%[markdown]
+# ## Define problem
+# We have selected `ada` optimizer on dataset `wine` with `nll` metric.
+# Optimizer was selected with respect to number of hyperparameters (althought it is slower to evaluate)
+# %%
+rnd = RandomState(seed=42)
+np.random.seed(42)
+problem = SklearnModel(
+    "ada", "wine", "nll", data_root="/mnt/workspace/output/run_fixed"
+)
+tr = HyperTransformer(problem.api_config)
+# %%[markdown]
+# ## Step 1 (initialize with random data)
+# %%
+suggestions_real = tr.random_continuous(40, rnd)
+_suggestions = tr.to_hyper_space(suggestions_real)
+suggestions = [
+    dict(zip(_suggestions, (int(e), l[0])))
+    for e, l in zip(*_suggestions.values())
+]
+responses = []
+for suggestion in suggestions:
+    responses.append(problem.evaluate(suggestion))
+responses = np.asarray(responses)
+visible_to_opt = responses[:, 0]
+generalization = responses[:, 1]
+# %%[markdown]
+# ## Step 2 (create grid of interesting kernel functions)
+# Kernel functions were selected manually to research on individual kernel classes and
+# their parameters
+# %% 
+kernels = {
+    "current: Matern(nu=2.5)": Matern(nu=2.5),
+    "Matern()": Matern(),
+    "RBF()": RBF(),
+    "Matern(length_scale=[1.0, 0.1])": Matern(length_scale=[1.0, 0.1]),
+}
+fig = make_subplots(rows=2, cols=2, subplot_titles=list(kernels.keys()))
+for kernel_id, kernel in enumerate(kernels.values()):
+    gp = GaussianProcessRegressor(
+        kernel=DiscreteKernel(kernel, tr),
+        alpha=1e-10,
+        normalize_y=True,
+        n_restarts_optimizer=5,
+        random_state=rnd,
+    )
+    row=kernel_id//2+1
+    col=kernel_id%2+1
+    gp.fit(suggestions_real, visible_to_opt)
+    gp_trace = plot_GP(gp, tr)
+    fig.add_trace(gp_trace, row=row, col=col)
+    sg_trace = plot_suggestions(suggestions, visible_to_opt)
+    fig.add_trace(sg_trace, row=row, col=col)
+fig.update_layout(width=1024, height=1024)
+fig.update_xaxes(title_text='n_estimators', range=(tr._lb[0], tr._ub[0]))
+fig.update_yaxes(title_text='learning_rate',type="log", range=(tr._lb[1], tr._ub[1]))
+fig.show()
+# %% 
+kernels = {
+    "RBF(length_scale=[1.0, 0.1])": RBF(length_scale=[1.0, 0.1]),
+    "Matern(length_scale=[5.0, 0.25], nu=2.5)": Matern(length_scale=[5.0, 0.25], nu=2.5),
+    "Matern(length_scale=[5.0, 0.25], nu=0.5)": Matern(length_scale=[5.0, 0.25], nu=0.5),
+    "RBF(length_scale=[5.0, 0.25])": RBF(length_scale=[5.0, 0.25]),
+}
+fig = make_subplots(rows=2, cols=2, subplot_titles=list(kernels.keys()))
+for kernel_id, kernel in enumerate(kernels.values()):
+    gp = GaussianProcessRegressor(
+        kernel=DiscreteKernel(kernel, tr),
+        alpha=1e-10,
+        normalize_y=True,
+        n_restarts_optimizer=5,
+        random_state=rnd,
+    )
+    row=kernel_id//2+1
+    col=kernel_id%2+1
+    gp.fit(suggestions_real, visible_to_opt)
+    gp_trace = plot_GP(gp, tr)
+    fig.add_trace(gp_trace, row=row, col=col)
+    sg_trace = plot_suggestions(suggestions, visible_to_opt)
+    fig.add_trace(sg_trace, row=row, col=col)
+fig.update_layout(width=1024, height=1024)
+fig.update_xaxes(title_text='n_estimators', range=(tr._lb[0], tr._ub[0]))
+fig.update_yaxes(title_text='learning_rate',type="log", range=(tr._lb[1], tr._ub[1]))
+fig.show()
+# %%
+fig = go.Figure()
+gp = GaussianProcessRegressor(
+    kernel=DiscreteKernel(RBF(), tr),
+    alpha=1e-10,
+    normalize_y=True,
+    n_restarts_optimizer=5,
+    random_state=rnd,
+)
+gp.fit(suggestions_real, visible_to_opt)
+gp_trace = plot_GP(gp, tr)
+fig.add_trace(gp_trace)
+sg_trace = plot_suggestions(suggestions, visible_to_opt)
+fig.add_trace(sg_trace)
+fig.update_layout(width=768, height=768)
+fig.update_xaxes(title_text='n_estimators', range=(tr._lb[0], tr._ub[0]))
+fig.update_yaxes(title_text='learning_rate',type="log", range=(tr._lb[1], tr._ub[1]))
+fig.show()
+
+# %%

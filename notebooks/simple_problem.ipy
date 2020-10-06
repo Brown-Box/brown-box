@@ -1,0 +1,83 @@
+
+# %%
+import numpy as np
+from tqdm import tqdm
+
+from bayesmark.sklearn_funcs import SklearnModel
+
+from brown_box.cost_functions import ucb_real, poi_real, ei_real
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern, RBF, RationalQuadratic, ExpSineSquared
+from brown_box.utils import DiscreteKernel, HyperTransformer
+
+from numpy.random import RandomState
+from brown_box.optimizers import MarkovGaussianProcessReal
+
+import matplotlib.pyplot as plt
+N_ITER=16
+N_BATCH=8
+rnd = RandomState(seed=42)
+np.random.seed(42)
+
+def model(x):
+    """model to optimize, minimum for x = -1"""
+    return 2 * x ** 2 + 4 * x + 2
+
+api_config = {
+        "x": {"type": "real", "space": "linear", "range": (-100, 100)},
+    }
+tr = HyperTransformer(api_config)
+# %%
+suggestions_real = tr.random_continuous(40, rnd)
+_suggestions = tr.to_hyper_space(suggestions_real)
+suggestions = [
+    dict(zip(_suggestions , v))
+    for v in zip(*_suggestions.values())
+]
+responses = []
+for suggestion in suggestions:
+    responses.append(model(**suggestion))
+responses = np.asarray(responses)
+visible_to_opt = responses[:, 0]
+
+# %%
+gp = GaussianProcessRegressor(
+    kernel=DiscreteKernel(Matern(nu=2.5, length_scale=[100.0]), tr),
+    alpha=1e-10,
+    normalize_y=True,
+    n_restarts_optimizer=5,
+    random_state=rnd,
+)
+gp.fit(suggestions_real, visible_to_opt)
+_X = np.linspace(-20,20,1000).reshape(-1,1)
+_y,_std = gp.predict(_X, return_std=True)
+_y_true = model(_X)
+plt.plot(_X, _y, label="gp")
+plt.plot(_X, _y_true, label="target")
+plt.legend()
+plt.title("GP model vs true target (length_scale=1; range -100,100)")
+plt.show()
+
+
+# %%
+
+
+plt.plot(_X, _y+15000*_std, label="ucb")
+plt.plot(_X, _y_true, label="target")
+plt.legend()
+plt.title("GP model vs true target (length_scale=1; range -100,100)")
+plt.show()
+
+# %% 
+xi=0.1
+min_y=min(visible_to_opt)
+a = _y + min_y + xi
+z = a / _std
+ei = a * norm.cdf(z) - _std * norm.pdf(z)
+plt.plot(_X, ei, label="ei")
+plt.plot(_X, _y_true, label="target")
+plt.legend()
+plt.title("GP model vs true target (length_scale=1; range -100,100)")
+plt.show()
+
+# %%
