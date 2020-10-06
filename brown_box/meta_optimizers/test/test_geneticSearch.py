@@ -114,6 +114,28 @@ def test_bool():
     assert 1 == proposal["x"]
 
 
+def test_real_values():
+    api_config = {
+        "x": {"type": "real", "space": "linear", "values": (-10, -2.5, -1, 0.5, 10)},
+    }
+    transformer = HyperTransformer(api_config)
+    gs = GeneticSearch(transformer)
+    proposal = gs.suggest(basic_fit_function)
+
+    assert pytest.approx(-1, 0.1) == proposal["x"]
+
+
+def test_int_values():
+    api_config = {
+        "x": {"type": "int", "space": "linear", "values": (-10, -2, -1, 0, 10)},
+    }
+    transformer = HyperTransformer(api_config)
+    gs = GeneticSearch(transformer)
+    proposal = gs.suggest(basic_fit_function)
+
+    assert pytest.approx(-1, 0.1) == proposal["x"]
+
+
 def test_mixed_types():
     api_config = {
         "x": {"type": "real", "space": "linear", "range": (-10, 10)},
