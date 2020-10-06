@@ -2,17 +2,16 @@ import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern
 
-import bayesmark.random_search as rs
 from bayesmark import np_util
-from bayesmark.abstract_optimizer import AbstractOptimizer
 from bayesmark.experiment import experiment_main
 
+from .brown_box_abstract_optimizer import BrownBoxAbstractOptimizer
 from ..cost_functions import ei_real
 from ..meta_optimizers import SciPyOptimizer
-from ..utils import DiscreteKernel, HyperTransformer
+from ..utils import DiscreteKernel
 
 
-class MarkovGaussianProcessReal(AbstractOptimizer):
+class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
     primary_import = "bayesmark"
 
     def __init__(self, api_config, random=np_util.random, meta_optimizer=SciPyOptimizer, cost=ei_real):
@@ -25,14 +24,9 @@ class MarkovGaussianProcessReal(AbstractOptimizer):
         api_config : dict-like of dict-like
             Configuration of the optimization variables. See API description.
         """
-        AbstractOptimizer.__init__(self, api_config)
-        self._api_config = api_config
-        self._random_state = random
-        self.tr = HyperTransformer(api_config)
+        super().__init__(api_config, random)
         self._cost = cost
         self._meta_optimizer = meta_optimizer
-        self.known_points = []
-        self.known_values = []
 
     def suggest(self, n_suggestions=1):
         """Make `n_suggestions` suggestions for what to evaluate next.
@@ -53,8 +47,7 @@ class MarkovGaussianProcessReal(AbstractOptimizer):
             corresponds to a parameter being optimized.
         """
         if len(self.known_points) < 2:
-            x_guess = rs.suggest_dict([], [], self._api_config, n_suggestions=n_suggestions, random=self._random_state)
-            return x_guess
+            return self.random_suggestion(n_suggestions)
 
         new_points = []
         new_values = []
@@ -84,27 +77,6 @@ class MarkovGaussianProcessReal(AbstractOptimizer):
             new_values.append(min_value)
             # print(min_value, min_point)
         return new_points
-
-    def observe(self, X, y):
-        """Feed the observations back to hyperopt.
-
-        Parameters
-        ----------
-        X : list of dict-like
-            Places where the objective function has already been evaluated.
-            Each suggestion is a dictionary where each key corresponds to a
-            parameter being optimized.
-        y : array-like, shape (n,)
-            Corresponding values where objective has been evaluated.
-        """
-        obs_y = []
-        for _X, _y in zip(X, y):
-            self.known_points.append(_X)
-            if np.isfinite(_y):
-                obs_y.append(_y)
-            else:
-                obs_y.append(np.iinfo(np.int32).max)
-        self.known_values = np.concatenate([self.known_values, obs_y])
 
 
 if __name__ == "__main__":

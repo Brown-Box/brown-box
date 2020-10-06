@@ -2,7 +2,7 @@ import numpy as np
 from typing import Dict
 from collections import OrderedDict
 
-from .qops import qbiexp, qbilog, qexp10, qlog10, qexpit, qlogit
+from .qops import qbiexp, qbilog, qexp10, qlog10
 from bayesmark.space import bilog, biexp
 from scipy.special import logit, expit
 
@@ -15,8 +15,9 @@ CONT_REAL = {
     "int": {
         "log": qlog10,
         "bilog": qbilog,
-        "logit": qlogit,
-        "linear": lambda x: np.asarray(x, np.int),
+        # integer logit is impossible; however, failure is not an option
+        "logit": lambda x: np.rint(x).astype(int),
+        "linear": lambda x: np.rint(x).astype(int),
     },
     "real": {
         "log": np.log10,
@@ -30,8 +31,9 @@ CONT_HYPER = {
     "int": {
         "log": qexp10,
         "bilog": qbiexp,
-        "logit": qexpit,
-        "linear": lambda x: np.asarray(x, np.int),
+        # integer logit is impossible; however, failure is not an option
+        "logit": lambda x: np.rint(x).astype(int),
+        "linear": lambda x: np.rint(x).astype(int),
     },
     "real": {
         "log": exp10,
@@ -69,7 +71,7 @@ def cont_coerc(spec):
         if _type == "int" and _space == "log":
 
             def _coerc(x):
-                y = np.log10(np.power(10, x).astype(int))
+                y = np.log10(np.rint(np.power(10, x)))
                 return np.clip(y, rng[0], rng[1])
 
             return _coerc
@@ -77,7 +79,7 @@ def cont_coerc(spec):
         if _type == "int" and _space == "bilog":
 
             def _coerc(x):
-                y = bilog(biexp(x).astype(int))
+                y = bilog(np.rint(biexp(x)))
                 return np.clip(y, rng[0], rng[1])
 
             return _coerc
@@ -85,7 +87,7 @@ def cont_coerc(spec):
         if _type == "int" and _space == "logit":
 
             def _coerc(x):
-                y = logit(expit(x).astype(int))
+                y = logit(np.rint(expit(x)))
                 return np.clip(y, rng[0], rng[1])
 
             return _coerc
@@ -136,20 +138,27 @@ def hardmax(points):
     hard[range(idx.size), idx] = 1
     return hard
 
+
 def real_random(lb, ub):
     def _uniform(n, rnd_state):
         return rnd_state.uniform(lb, ub, n)
+
     return _uniform
+
 
 def bool_random():
     def _beta(n, rnd_state):
         return rnd_state.beta(0.5, 0.5, n)
+
     return _beta
+
 
 def cat_random(n_cat):
     def _rnd_cat(n, rnd_state):
         return np.eye(n_cat)[rnd_state.choice(n_cat, n)]
+
     return _rnd_cat
+
 
 class HyperTransformer:
     def __init__(self, api_config: Dict):
@@ -235,7 +244,7 @@ class HyperTransformer:
             new_points[:, sl] = _coerc(points[:, sl])
         return new_points
 
-    def random_continuous(self, n , random_state):
+    def random_continuous(self, n, random_state):
         cols = []
         for rnd in self._randoms:
             cols.append(rnd(n, random_state))
