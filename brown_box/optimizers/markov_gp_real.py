@@ -21,6 +21,9 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         meta_optimizer=SciPyOptimizer,
         kernel=Matern(nu=2.5),
         cost=ei_real,
+        xi=5.0,
+        r_xi=1,
+        kappa=2.6,
         iter_timeout=40.0
     ):
         """This optimizes samples multiple suggestions from Gaussian Process.
@@ -37,6 +40,9 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         self._meta_optimizer = meta_optimizer
         self.kernel=kernel
         self.iter_timeout = iter_timeout
+        self.xi = xi
+        self.r_xi = r_xi
+        self.kappa = kappa
 
     def suggest(self, n_suggestions=1):
         """Make `n_suggestions` suggestions for what to evaluate next.
@@ -76,8 +82,8 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
                 self.tr,
                 max_y=max(all_values),
                 min_y=min(all_values),
-                xi=0.11,
-                kappa=2.6,
+                xi=self.xi,
+                kappa=self.kappa,
             )
             meta_minimizer = self._meta_optimizer(
                 self.tr, self._random_state, cost_f
@@ -91,6 +97,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
             min_value = gp.predict(X)[0]
             new_values.append(min_value)
             # print(min_value, min_point)
+        self.xi /= self.r_xi
         return new_points
 
     def _gp(self):

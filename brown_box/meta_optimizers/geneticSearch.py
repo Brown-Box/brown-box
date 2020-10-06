@@ -3,6 +3,7 @@ from typing import Optional
 
 import numpy as np
 from scipy.optimize._differentialevolution import DifferentialEvolutionSolver
+from scipy.optimize import Bounds
 
 from ..utils import HyperTransformer, spec_to_bound
 
@@ -118,6 +119,82 @@ class GeneticSearch:
         real_params = np.concatenate(real_params)
         return real_params
 
+class GeneticSearchNonRandom:
+    def __init__(self, transformer: HyperTransformer, random, cost_function) -> None:
+        self._transformer = transformer
+        self._api_config = transformer.api_config
+        self._start_time = None
+        self._timeout = None
+        self._timeout_passed = None
+        self.top_points_real = []
+        self.top_values = []
+        self.random=random
+        self.cost=cost_function
+
+    def _timeout_callback(self, xk, convergence):
+        if time() - self._start_time >= self._timeout:
+            self._timeout_passed = True
+            return True
+        else:
+            return False
+
+    def suggest(
+        self, timeout: Optional[int] = None
+    ) -> dict:
+
+        if timeout:
+            self._start_time = time()
+            self._timeout = timeout
+            callback = self._timeout_callback
+            self._timeout_passed = False
+        else:
+            callback = None
+        top_points = np.vstack([self.top_points_real[:5, ...]]*3)
+        dx = self._transformer.random_continuous(15, self.random)*0.01
+        # TODO turn on polish? Find out our own way to polish result?
+        solver = DifferentialEvolutionSolver(
+            func=self.cost,
+            bounds=Bounds(self._transformer._lb, self._transformer._ub),
+            init=top_points + dx,
+            seed=self.random,
+            callback=callback,
+            polish=False,
+            strategy="best1bin",
+            maxiter=1000,
+            popsize=15,
+            tol=0.01,
+            mutation=(0.5, 1),
+            recombination=0.7,
+            maxfun=np.inf,
+            disp=False,
+            atol=0,
+            updating="immediate",
+            workers=1,
+            constraints=(),
+        )
+        solver_return_value = solver.solve()
+        if not solver_return_value["success"] and not self._timeout_passed:
+            message = solver_return_value["message"]
+            raise ValueError(
+                f"DifferentialEvolutionSolver failed with message: {message}"
+            )
+
+        
+        real_params = solver.x
+        if len(real_params.shape) == 1:
+            real_params = np.array([real_params])
+        result = self._transformer.to_hyper_space(real_params)
+        result = {key: val[0][0] if type(val) is np.ndarray else val[0] for key, val in result.items()}
+
+        return result
+
+    def observe(self, x, Y):
+        indices = np.argsort(Y)
+        self.top_values = [Y[idx] for idx in indices]
+        _x = [x[idx] for idx in indices]
+        _p = {k: [dic[k] for dic in _x] for k in _x[0]}
+        X = self._transformer.to_real_space(**_p)
+        self.top_points_real = X
 
 class BrownEvolutionSolver(DifferentialEvolutionSolver):
     def __init__(
@@ -194,3 +271,4 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
         new_pop_member = np.clip(new_pop_member, 0, 1)
 
         return new_pop_member
+
