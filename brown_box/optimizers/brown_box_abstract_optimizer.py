@@ -19,6 +19,8 @@ class BrownBoxAbstractOptimizer(AbstractOptimizer):
         self.known_points = []
         self.known_values = []
 
+        self.current_iteration = 0
+
     def random_suggestion(self, n_suggestions):
         x_guess = rs.suggest_dict(
             [],
@@ -69,3 +71,5 @@ class BrownBoxAbstractOptimizer(AbstractOptimizer):
             else:
                 obs_y.append(np.iinfo(np.int32).max)
         self.known_values = np.concatenate([self.known_values, obs_y])
+
+        self.current_iteration += 1
