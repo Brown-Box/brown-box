@@ -120,7 +120,7 @@ class GeneticSearch:
         return real_params
 
 class GeneticSearchNonRandom:
-    def __init__(self, transformer: HyperTransformer, random, cost_function) -> None:
+    def __init__(self, transformer: HyperTransformer, random, cost_function, step=0) -> None:
         self._transformer = transformer
         self._api_config = transformer.api_config
         self._start_time = None
@@ -130,6 +130,7 @@ class GeneticSearchNonRandom:
         self.top_values = []
         self.random=random
         self.cost=cost_function
+        self._iter=step
 
     def _timeout_callback(self, xk, convergence):
         if time() - self._start_time >= self._timeout:
@@ -149,8 +150,12 @@ class GeneticSearchNonRandom:
             self._timeout_passed = False
         else:
             callback = None
-        top_points = np.vstack([self.top_points_real[:5, ...]]*3)
-        dx = self._transformer.random_continuous(15, self.random)*0.01
+        top_n = 5+self._iter//2
+        n_rep = 3+self._iter//2
+        top_points = np.vstack([self.top_points_real[:top_n, ...]]*n_rep)
+
+        dx = self._transformer.random_continuous(top_n*n_rep, self.random)
+        dx *= 0.05
         # TODO turn on polish? Find out our own way to polish result?
         solver = DifferentialEvolutionSolver(
             func=self.cost,
@@ -161,7 +166,6 @@ class GeneticSearchNonRandom:
             polish=False,
             strategy="best1bin",
             maxiter=1000,
-            popsize=15,
             tol=0.01,
             mutation=(0.5, 1),
             recombination=0.7,

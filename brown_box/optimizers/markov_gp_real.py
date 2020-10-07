@@ -43,6 +43,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         self.xi = xi
         self.r_xi = r_xi
         self.kappa = kappa
+        self._iter = 0
 
     def suggest(self, n_suggestions=1):
         """Make `n_suggestions` suggestions for what to evaluate next.
@@ -62,7 +63,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
             function. Each suggestion is a dictionary where each key
             corresponds to a parameter being optimized.
         """
-        if len(self.known_points) < 2:
+        if len(self.known_points) < 20:
             return self.random_suggestion(n_suggestions)
 
         new_points = []
@@ -86,7 +87,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
                 kappa=self.kappa,
             )
             meta_minimizer = self._meta_optimizer(
-                self.tr, self._random_state, cost_f
+                self.tr, self._random_state, cost_f, step=self._iter
             )
             meta_minimizer.observe(all_points, all_values)
             min_point = [meta_minimizer.suggest(timeout=self.iter_timeout*0.9/n_suggestions)]
@@ -97,12 +98,22 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
             min_value = gp.predict(X)[0]
             new_values.append(min_value)
             # print(min_value, min_point)
-        self.xi /= self.r_xi
+        self.xi *= self.r_xi
+        self._iter += 1
         return new_points
 
     def _gp(self):
+        # length_scale = (ubs-lbs)/(16+self._iter)
+        # if self._iter < 5:
+        #     lbs = np.asarray(self.tr._lb)
+        #     ubs = np.asarray(self.tr._ub)
+        #     length_scale = (ubs-lbs)/16
+        # else:
+        #     length_scale = 1.0
+        # self.kernel.length_scale = length_scale
         return GaussianProcessRegressor(
             kernel=DiscreteKernel(self.kernel, self.tr),
+            # kernel=self.kernel,
             alpha=1e-6,
             normalize_y=True,
             n_restarts_optimizer=5,
