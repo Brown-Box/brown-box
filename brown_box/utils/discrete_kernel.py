@@ -31,3 +31,37 @@ class DiscreteKernel(StationaryKernelMixin, NormalizedKernelMixin,
     def diag(self, X):
         _X = self._tr.continuous_transform(X)
         return self._kernel.diag(_X)
+
+    @property
+    def theta(self):
+        """Returns the (flattened, log-transformed) non-fixed hyperparameters.
+        Note that theta are typically the log-transformed values of the
+        kernel's hyperparameters as this representation of the search space
+        is more amenable for hyperparameter search, as hyperparameters like
+        length-scales naturally live on a log-scale.
+        Returns
+        -------
+        theta : ndarray of shape (n_dims,)
+            The non-fixed, log-transformed hyperparameters of the kernel
+        """
+        return self._kernel.theta
+
+    @theta.setter
+    def theta(self, theta):
+        """Sets the (flattened, log-transformed) non-fixed hyperparameters.
+        Parameters
+        ----------
+        theta : array of shape (n_dims,)
+            The non-fixed, log-transformed hyperparameters of the kernel
+        """
+        self._kernel.theta = theta
+
+    @property
+    def bounds(self):
+        """Returns the log-transformed bounds on the theta.
+        Returns
+        -------
+        bounds : array of shape (n_dims, 2)
+            The log-transformed bounds on the kernel's hyperparameters theta
+        """
+        return self._kernel.bounds
