@@ -61,10 +61,18 @@ def cont_coerc(spec):
         return _coerc
     if "range" in spec:
         rng = [CONT_REAL[_type][_space](bound) for bound in spec["range"]]
-        if _type == "real" or _space == "linear":
+        if _type == "real":
 
             def _coerc(x):
                 return np.clip(x, rng[0], rng[1])
+
+            return _coerc
+
+        if _type == "int" and _space == "linear":
+
+            def _coerc(x):
+                y=np.rint(x)
+                return np.clip(y, rng[0], rng[1])
 
             return _coerc
 
