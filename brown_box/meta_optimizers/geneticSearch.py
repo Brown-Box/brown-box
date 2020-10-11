@@ -2,7 +2,12 @@ from time import time
 from typing import Optional
 
 import numpy as np
-from scipy.optimize._differentialevolution import DifferentialEvolutionSolver
+from scipy.optimize._differentialevolution import (
+    DifferentialEvolutionSolver,
+    OptimizeResult,
+    minimize,
+    warnings,
+)
 from scipy.optimize import Bounds
 
 from ..utils import HyperTransformer, spec_to_bound
@@ -119,8 +124,11 @@ class GeneticSearch:
         real_params = np.concatenate(real_params)
         return real_params
 
+
 class GeneticSearchNonRandom:
-    def __init__(self, transformer: HyperTransformer, random, cost_function, step=0) -> None:
+    def __init__(
+        self, transformer: HyperTransformer, random, cost_function, step=0
+    ) -> None:
         self._transformer = transformer
         self._api_config = transformer.api_config
         self._start_time = None
@@ -128,9 +136,9 @@ class GeneticSearchNonRandom:
         self._timeout_passed = None
         self.top_points_real = []
         self.top_values = []
-        self.random=random
-        self.cost=cost_function
-        self._iter=step
+        self.random = random
+        self.cost = cost_function
+        self._iter = step
 
     def _timeout_callback(self, xk, convergence):
         if time() - self._start_time >= self._timeout:
@@ -139,9 +147,7 @@ class GeneticSearchNonRandom:
         else:
             return False
 
-    def suggest(
-        self, timeout: Optional[int] = None
-    ) -> dict:
+    def suggest(self, timeout: Optional[int] = None) -> dict:
 
         if timeout:
             self._start_time = time()
@@ -150,14 +156,15 @@ class GeneticSearchNonRandom:
             self._timeout_passed = False
         else:
             callback = None
-        top_n = 5+self._iter//2
-        n_rep = 3+self._iter//2
-        top_points = np.vstack([self.top_points_real[:top_n, ...]]*n_rep)
+        top_n = 5 + self._iter // 2
+        n_rep = 3 + self._iter // 2
+        top_points = np.vstack([self.top_points_real[:top_n, ...]] * n_rep)
 
-        dx = self._transformer.random_continuous(top_n*n_rep, self.random)
+        dx = self._transformer.random_continuous(top_n * n_rep, self.random)
         dx *= 0.05
         # TODO turn on polish? Find out our own way to polish result?
-        solver = DifferentialEvolutionSolver(
+        solver = BrownEvolutionSolver(
+            timeout=self._timeout,
             func=self.cost,
             bounds=Bounds(self._transformer._lb, self._transformer._ub),
             init=top_points + dx,
@@ -177,18 +184,20 @@ class GeneticSearchNonRandom:
             constraints=(),
         )
         solver_return_value = solver.solve()
-        if not solver_return_value["success"] and not self._timeout_passed:
-            message = solver_return_value["message"]
+        message = solver_return_value["message"]
+        if not solver_return_value["success"] and message != _status_message["timeout"]:
             raise ValueError(
                 f"DifferentialEvolutionSolver failed with message: {message}"
             )
 
-        
         real_params = solver.x
         if len(real_params.shape) == 1:
             real_params = np.array([real_params])
         result = self._transformer.to_hyper_space(real_params)
-        result = {key: val[0][0] if type(val) is np.ndarray else val[0] for key, val in result.items()}
+        result = {
+            key: val[0][0] if type(val) is np.ndarray else val[0]
+            for key, val in result.items()
+        }
 
         return result
 
@@ -200,12 +209,24 @@ class GeneticSearchNonRandom:
         X = self._transformer.to_real_space(**_p)
         self.top_points_real = X
 
+
+_status_message = {'success': 'Optimization terminated successfully.',
+                   'maxfev': 'Maximum number of function evaluations has '
+                              'been exceeded.',
+                   'maxiter': 'Maximum number of iterations has been '
+                              'exceeded.',
+                   'timeout': 'Timeout reached.',
+                   'pr_loss': 'Desired error not necessarily achieved due '
+                              'to precision loss.',
+                   'nan': 'NaN result encountered.'}
+
+
 class BrownEvolutionSolver(DifferentialEvolutionSolver):
     def __init__(
         self,
-        transformer,
         func,
         bounds,
+        timeout=None,
         args=(),
         strategy="best1bin",
         maxiter=1000,
@@ -245,34 +266,161 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
             workers,
             constraints,
         )
-        self.transformer = transformer
+        self._timeout = timeout
 
-    def _best1(self, samples):
-        """best1bin, best1exp"""
-        r0, r1 = samples[:2]
-        new_pop_member = self.population[0] + self.scale * (
-            self.population[r0] - self.population[r1]
-        )
-        # neni nahoda lepsi? + optimalizuj for cyklus
-        # r = 2 * self.random_number_generator.random_sample(1)[0] - 1
-        # new_pop_member = self.population[0] + self.scale * r
+    def solve(self):
+        """
+        Runs the DifferentialEvolutionSolver.
 
-        for param_i, (param_name, param_info) in enumerate(
-            self.transformer.api_config.items()
-        ):
-            if param_info["type"] in ["cat", "bool"] or (
-                param_info["type"] in ["real", "int"] and "values" in param_info
+        Returns
+        -------
+        res : OptimizeResult
+            The optimization result represented as a ``OptimizeResult`` object.
+            Important attributes are: ``x`` the solution array, ``success`` a
+            Boolean flag indicating if the optimizer exited successfully and
+            ``message`` which describes the cause of the termination. See
+            `OptimizeResult` for a description of other attributes.  If `polish`
+            was employed, and a lower minimum was obtained by the polishing,
+            then OptimizeResult also contains the ``jac`` attribute.
+        """
+        nit, warning_flag = 0, False
+        status_message = _status_message["success"]
+
+        # The population may have just been initialized (all entries are
+        # np.inf). If it has you have to calculate the initial energies.
+        # Although this is also done in the evolve generator it's possible
+        # that someone can set maxiter=0, at which point we still want the
+        # initial energies to be calculated (the following loop isn't run).
+        if np.all(np.isinf(self.population_energies)):
+            (
+                self.feasible,
+                self.constraint_violation,
+            ) = self._calculate_population_feasibilities(self.population)
+
+            # only work out population energies for feasible solutions
+            self.population_energies[
+                self.feasible
+            ] = self._calculate_population_energies(self.population[self.feasible])
+
+            self._promote_lowest_energy()
+
+        # do the optimisation.
+        start_time = time()
+        while self._timeout is None or time() < start_time + self._timeout:
+            # evolve the population by a generation
+            try:
+                next(self)
+            except StopIteration:
+                warning_flag = True
+                if self._nfev > self.maxfun:
+                    status_message = _status_message["maxfev"]
+                elif self._nfev == self.maxfun:
+                    status_message = (
+                        "Maximum number of function evaluations" " has been reached."
+                    )
+                break
+
+            if self.disp:
+                print(
+                    "differential_evolution step %d: f(x)= %g"
+                    % (time() - start_time, self.population_energies[0])
+                )
+
+            # should the solver terminate?
+            convergence = self.convergence
+
+            if (
+                self.callback
+                and self.callback(
+                    self._scale_parameters(self.population[0]),
+                    convergence=self.tol / convergence,
+                )
+                is True
             ):
-                random_number = self.random_number_generator.random_sample(1)[0]
-                a = random_number < self.scale
-                if random_number < self.scale:
-                    new_pop_member[
-                        param_i
-                    ] = self.random_number_generator.random_sample(1)[0]
-                else:
-                    new_pop_member[param_i] = self.population[0][param_i]
 
-        new_pop_member = np.clip(new_pop_member, 0, 1)
+                warning_flag = True
+                status_message = (
+                    "callback function requested stop early " "by returning True"
+                )
+                break
 
-        return new_pop_member
+            if np.any(np.isinf(self.population_energies)):
+                intol = False
+            else:
+                intol = np.std(
+                    self.population_energies
+                ) <= self.atol + self.tol * np.abs(np.mean(self.population_energies))
+            if warning_flag or intol:
+                break
 
+        else:
+            status_message = _status_message["timeout"]
+            warning_flag = True
+
+        DE_result = OptimizeResult(
+            x=self.x,
+            fun=self.population_energies[0],
+            nfev=self._nfev,
+            nit=time() - start_time,
+            message=status_message,
+            success=(warning_flag is not True),
+        )
+
+        if self.polish:
+            polish_method = "L-BFGS-B"
+
+            if self._wrapped_constraints:
+                polish_method = "trust-constr"
+
+                constr_violation = self._constraint_violation_fn(DE_result.x)
+                if np.any(constr_violation > 0.0):
+                    warnings.warn(
+                        "differential evolution didn't find a"
+                        " solution satisfying the constraints,"
+                        " attempting to polish from the least"
+                        " infeasible solution",
+                        UserWarning,
+                    )
+
+            result = minimize(
+                self.func,
+                np.copy(DE_result.x),
+                method=polish_method,
+                bounds=self.limits.T,
+                constraints=self.constraints,
+            )
+
+            self._nfev += result.nfev
+            DE_result.nfev = self._nfev
+
+            # polishing solution is only accepted if there is an improvement in
+            # cost function, the polishing was successful and the solution lies
+            # within the bounds.
+            if (
+                result.fun < DE_result.fun
+                and result.success
+                and np.all(result.x <= self.limits[1])
+                and np.all(self.limits[0] <= result.x)
+            ):
+                DE_result.fun = result.fun
+                DE_result.x = result.x
+                DE_result.jac = result.jac
+                # to keep internal state consistent
+                self.population_energies[0] = result.fun
+                self.population[0] = self._unscale_parameters(result.x)
+
+        if self._wrapped_constraints:
+            DE_result.constr = [
+                c.violation(DE_result.x) for c in self._wrapped_constraints
+            ]
+            DE_result.constr_violation = np.max(np.concatenate(DE_result.constr))
+            DE_result.maxcv = DE_result.constr_violation
+            if DE_result.maxcv > 0:
+                # if the result is infeasible then success must be False
+                DE_result.success = False
+                DE_result.message = (
+                    "The solution does not satisfy the"
+                    " constraints, MAXCV = " % DE_result.maxcv
+                )
+
+        return DE_result
