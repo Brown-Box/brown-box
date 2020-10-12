@@ -12,13 +12,16 @@ def ei(gp, tr, min_y=0, xi=0.01, **_):
     return cost
 
 
-def ei_real(gp, tr, min_y=0, xi=0.01, **_):
+def ei_real(gp, tr, min_y=0, max_y=1.0, xi=0.01, **_):
     def cost(X):
         if X.ndim == 1:
             X = X.reshape(1, -1)
         mean, std = gp.predict(X, return_std=True)
         a = mean - min_y - xi
-        z = a / std
+        if abs(max_y) > 0.1:
+            z = a / std / max_y
+        else:
+            z= a /std
         return a * norm.cdf(z) - std * norm.pdf(z)
 
     return cost
