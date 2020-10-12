@@ -67,7 +67,7 @@ class BrownBoxAbstractOptimizer(AbstractOptimizer):
         for _X, _y in zip(X, y):
             self.known_points.append(_X)
             if np.isfinite(_y):
-                obs_y.append(_y)
+                obs_y.append(_y + 1)
             else:
                 obs_y.append(np.iinfo(np.int32).max)
         self.known_values = np.concatenate([self.known_values, obs_y])
