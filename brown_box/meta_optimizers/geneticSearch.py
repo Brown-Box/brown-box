@@ -10,7 +10,7 @@ from scipy.optimize._differentialevolution import (
 )
 from scipy.optimize import Bounds
 
-from ..utils import HyperTransformer, spec_to_bound
+from ..utils import HyperTransformer
 
 
 class GeneticSearchNonRandom:
@@ -98,14 +98,15 @@ class GeneticSearchNonRandom:
         self.top_points_real = X
 
 
-_status_message = {
-    "success": "Optimization terminated successfully.",
-    "maxfev": "Maximum number of function evaluations has " "been exceeded.",
-    "maxiter": "Maximum number of iterations has been " "exceeded.",
-    "timeout": "Timeout reached.",
-    "pr_loss": "Desired error not necessarily achieved due " "to precision loss.",
-    "nan": "NaN result encountered.",
-}
+_status_message = {'success': 'Optimization terminated successfully.',
+                   'maxfev': 'Maximum number of function evaluations has '
+                              'been exceeded.',
+                   'maxiter': 'Maximum number of iterations has been '
+                              'exceeded.',
+                   'timeout': 'Timeout reached.',
+                   'pr_loss': 'Desired error not necessarily achieved due '
+                              'to precision loss.',
+                   'nan': 'NaN result encountered.'}
 
 
 class BrownEvolutionSolver(DifferentialEvolutionSolver):
