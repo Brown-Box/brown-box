@@ -7,7 +7,7 @@ from bayesmark.abstract_optimizer import AbstractOptimizer
 
 
 class SciPyOptimizer(AbstractOptimizer):
-    def __init__(self, tr, random, cost_function):
+    def __init__(self, tr, random, cost_function, **_):
         self.random=random
         self.tr=tr
         self.cost=cost_function
@@ -39,7 +39,7 @@ class SciPyOptimizer(AbstractOptimizer):
         pass
 
 class SciPyOptimizerNonRandom(AbstractOptimizer):
-    def __init__(self, tr, random, cost_function):
+    def __init__(self, tr, random, cost_function, **_):
         self.random=random
         self.tr=tr
         self.cost=cost_function
