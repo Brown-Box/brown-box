@@ -1,16 +1,10 @@
-from ..cost_functions import ei_real, ucb_real
-from ..optimizers import (
-    BrownBoxAbstractOptimizer,
-    MultiGaussianProcess,
-    MarkovGaussianProcessReal,
-    GAMarkovGaussianProcessReal,
-)
+from ..optimizers import BrownBoxAbstractOptimizer
 
 
 class CombinedOptimizer(BrownBoxAbstractOptimizer):
     primary_import = "bayesmark"
 
-    def __init__(self, api_config):
+    def __init__(self, api_config, optimizers=[BrownBoxAbstractOptimizer]):
         """This combines multiple optimizers to make more robust optimizer
 
         Parameters
@@ -20,13 +14,7 @@ class CombinedOptimizer(BrownBoxAbstractOptimizer):
         """
         super().__init__(api_config)
 
-        self.optimizers = [
-            MultiGaussianProcess(api_config),
-            GAMarkovGaussianProcessReal(api_config, cost=ucb_real),
-            GAMarkovGaussianProcessReal(api_config, cost=ei_real),
-            MarkovGaussianProcessReal(api_config, cost=ucb_real),
-            MarkovGaussianProcessReal(api_config, cost=ei_real),
-        ]
+        self.optimizers = optimizers
 
     def suggest(self, n_suggestions=1):
         """Make `n_suggestions` suggestions for what to evaluate next.
@@ -46,9 +34,6 @@ class CombinedOptimizer(BrownBoxAbstractOptimizer):
             function. Each suggestion is a dictionary where each key
             corresponds to a parameter being optimized.
         """
-        if self.current_iteration < 3:
-            return self.random_suggestion(n_suggestions)
-
         optimizer = self.optimizers[self.current_iteration % len(self.optimizers)]
         return optimizer.suggest(n_suggestions)
 
