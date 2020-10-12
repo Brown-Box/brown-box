@@ -12,7 +12,7 @@ class RandomOptimizer(AbstractOptimizer):
     # Unclear what is best package to list for primary_import here.
     primary_import = "bayesmark"
 
-    def __init__(self, api_config, random, cost_function):
+    def __init__(self, api_config, random, cost_function, step=0):
         """Build wrapper class to use random search function in benchmark.
 
         Parameters
