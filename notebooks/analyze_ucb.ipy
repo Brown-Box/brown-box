@@ -46,7 +46,7 @@ tr = HyperTransformer(problem.api_config)
 # %%[markdown]
 # ## Step 1 (initialize with random data)
 # %%
-suggestions_real = tr.random_continuous(40, rnd)
+suggestions_real = tr.random_continuous(8, rnd)
 _suggestions = tr.to_hyper_space(suggestions_real)
 suggestions = [
     dict(zip(_suggestions, (int(e), l[0])))
@@ -60,7 +60,7 @@ visible_to_opt = responses[:, 0]
 generalization = responses[:, 1]
 # %%
 gp = GaussianProcessRegressor(
-    kernel=DiscreteKernel(Matern(length_scale=[50.0, 50.25], nu=2.5), tr),
+    kernel=DiscreteKernel(Matern(nu=2.5), tr),
     alpha=1e-10,
     normalize_y=True,
     n_restarts_optimizer=5,
@@ -80,11 +80,11 @@ _X = np.column_stack(
 )
 _y,_std = gp.predict(_X, return_std=True)
 min_y = min(visible_to_opt)
-xi = 1.0
+xi = 0.01
 mean = _y.reshape(n_pixels, n_pixels)
 std = _std.reshape(n_pixels, n_pixels)
 ucb = mean - 2.6*std
-a = (mean + min_y + xi)
+a = (mean - min_y - xi)
 z = a / std
 poi = norm.cdf(z)
 ei = a * norm.cdf(z) - std * norm.pdf(z)
