@@ -28,22 +28,13 @@ class GeneticSearchNonRandom:
         self.cost = cost_function
         self._iter = step
 
-    def _timeout_callback(self, xk, convergence):
-        if time() - self._start_time >= self._timeout:
-            self._timeout_passed = True
-            return True
-        else:
-            return False
-
     def suggest(self, timeout: Optional[int] = None) -> dict:
 
         if timeout:
             self._start_time = time()
             self._timeout = timeout
-            callback = self._timeout_callback
             self._timeout_passed = False
-        else:
-            callback = None
+
         top_n = 5 + self._iter // 2
         n_rep = 3 + self._iter // 2
         top_points = np.vstack([self.top_points_real[:top_n, ...]] * n_rep)
@@ -57,7 +48,7 @@ class GeneticSearchNonRandom:
             bounds=Bounds(self._transformer._lb, self._transformer._ub),
             init=top_points + dx,
             seed=self.random,
-            callback=callback,
+            callback=None,
             polish=False,
             strategy="best1bin",
             maxiter=1000,
