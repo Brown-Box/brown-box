@@ -215,7 +215,7 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
                 )
 
             # should the solver terminate?
-            convergence = self.convergence
+            convergence = self.convergence + 1e-6
 
             if (
                 self.callback
