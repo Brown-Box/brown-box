@@ -62,7 +62,7 @@ class GeneticSearchNonRandom:
             strategy="best1bin",
             maxiter=1000,
             tol=0.01,
-            mutation=(0.5, 1),
+            mutation=(0.25, 0.75),
             recombination=0.7,
             maxfun=np.inf,
             disp=False,
