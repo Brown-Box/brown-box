@@ -6,7 +6,7 @@ from bayesmark import np_util
 from bayesmark.experiment import experiment_main
 
 from ..cost_functions import ucb_real
-from ..meta_optimizers.geneticSearch import GeneticSearch
+from ..meta_optimizers.geneticSearch import GeneticSearchNonRandom
 from ..utils import DiscreteKernel
 from .markov_gp_real import MarkovGaussianProcessReal
 
@@ -18,7 +18,7 @@ class GAMarkovGaussianProcessReal(MarkovGaussianProcessReal):
         self,
         api_config,
         random=np_util.random,
-        meta_optimizer=GeneticSearch,
+        meta_optimizer=GeneticSearchNonRandom,
         cost=ucb_real,
     ):
         super().__init__(api_config, random, meta_optimizer, cost)
