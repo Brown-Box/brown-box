@@ -26,6 +26,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         kappa=2.6,
         iter_timeout=40.0,
         min_known=2,
+        normalize_y=True,
     ):
         """This optimizes samples multiple suggestions from Gaussian Process.
 
@@ -46,6 +47,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         self.kappa = kappa
         self._iter = 0
         self.min_known = min_known
+        self.normalize_y = normalize_y
 
     def suggest(self, n_suggestions=1):
         """Make `n_suggestions` suggestions for what to evaluate next.
@@ -110,7 +112,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
             kernel=DiscreteKernel(self.kernel, self.tr),
             # kernel=self.kernel,
             alpha=1e-6,
-            normalize_y=True,
+            normalize_y=self.normalize_y,
             n_restarts_optimizer=5,
             random_state=self._random_state,
         )
