@@ -146,6 +146,7 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
             constraints,
         )
         self._timeout = timeout
+        self._scale_mult = 1.0
 
     def solve(self):
         """
@@ -162,6 +163,7 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
             was employed, and a lower minimum was obtained by the polishing,
             then OptimizeResult also contains the ``jac`` attribute.
         """
+        start_time = time()
         nit, warning_flag = 0, False
         status_message = _status_message["success"]
 
@@ -184,8 +186,10 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
             self._promote_lowest_energy()
 
         # do the optimisation.
-        start_time = time()
         while self._timeout is None or time() < start_time + self._timeout:
+            scale_mult = 1 - (time() - start_time) / self._timeout
+            self._scale_mult = min(1, max(0.01, scale_mult))
+
             # evolve the population by a generation
             try:
                 next(self)
@@ -303,3 +307,129 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
                 )
 
         return DE_result
+
+    def __next__(self):
+        """
+        Evolve the population by a single generation
+
+        Returns
+        -------
+        x : ndarray
+            The best solution from the solver.
+        fun : float
+            Value of objective function obtained from the best solution.
+        """
+        # the population may have just been initialized (all entries are
+        # np.inf). If it has you have to calculate the initial energies
+        if np.all(np.isinf(self.population_energies)):
+            self.feasible, self.constraint_violation = (
+                self._calculate_population_feasibilities(self.population))
+
+            # only need to work out population energies for those that are
+            # feasible
+            self.population_energies[self.feasible] = (
+                self._calculate_population_energies(
+                    self.population[self.feasible]))
+
+            self._promote_lowest_energy()
+
+        if self.dither is not None:
+            self.scale = self._scale_mult * (self.random_number_generator.rand()
+                          * (self.dither[1] - self.dither[0]) + self.dither[0])
+
+        if self._updating == 'immediate':
+            # update best solution immediately
+            for candidate in range(self.num_population_members):
+                if self._nfev > self.maxfun:
+                    raise StopIteration
+
+                # create a trial solution
+                trial = self._mutate(candidate)
+
+                # ensuring that it's in the range [0, 1)
+                self._ensure_constraint(trial)
+
+                # scale from [0, 1) to the actual parameter value
+                parameters = self._scale_parameters(trial)
+
+                # determine the energy of the objective function
+                if self._wrapped_constraints:
+                    cv = self._constraint_violation_fn(parameters)
+                    feasible = False
+                    energy = np.inf
+                    if not np.sum(cv) > 0:
+                        # solution is feasible
+                        feasible = True
+                        energy = self.func(parameters)
+                        self._nfev += 1
+                else:
+                    feasible = True
+                    cv = np.atleast_2d([0.])
+                    energy = self.func(parameters)
+                    self._nfev += 1
+
+                # compare trial and population member
+                if self._accept_trial(energy, feasible, cv,
+                                      self.population_energies[candidate],
+                                      self.feasible[candidate],
+                                      self.constraint_violation[candidate]):
+                    self.population[candidate] = trial
+                    self.population_energies[candidate] = energy
+                    self.feasible[candidate] = feasible
+                    self.constraint_violation[candidate] = cv
+
+                    # if the trial candidate is also better than the best
+                    # solution then promote it.
+                    if self._accept_trial(energy, feasible, cv,
+                                          self.population_energies[0],
+                                          self.feasible[0],
+                                          self.constraint_violation[0]):
+                        self._promote_lowest_energy()
+
+        elif self._updating == 'deferred':
+            # update best solution once per generation
+            if self._nfev >= self.maxfun:
+                raise StopIteration
+
+            # 'deferred' approach, vectorised form.
+            # create trial solutions
+            trial_pop = np.array(
+                [self._mutate(i) for i in range(self.num_population_members)])
+
+            # enforce bounds
+            self._ensure_constraint(trial_pop)
+
+            # determine the energies of the objective function, but only for
+            # feasible trials
+            feasible, cv = self._calculate_population_feasibilities(trial_pop)
+            trial_energies = np.full(self.num_population_members, np.inf)
+
+            # only calculate for feasible entries
+            trial_energies[feasible] = self._calculate_population_energies(
+                trial_pop[feasible])
+
+            # which solutions are 'improved'?
+            loc = [self._accept_trial(*val) for val in
+                   zip(trial_energies, feasible, cv, self.population_energies,
+                       self.feasible, self.constraint_violation)]
+            loc = np.array(loc)
+            self.population = np.where(loc[:, np.newaxis],
+                                       trial_pop,
+                                       self.population)
+            self.population_energies = np.where(loc,
+                                                trial_energies,
+                                                self.population_energies)
+            self.feasible = np.where(loc,
+                                     feasible,
+                                     self.feasible)
+            self.constraint_violation = np.where(loc[:, np.newaxis],
+                                                 cv,
+                                                 self.constraint_violation)
+
+            # make sure the best solution is updated if updating='deferred'.
+            # put the lowest energy into the best solution position.
+            self._promote_lowest_energy()
+
+        return self.x, self.population_energies[0]
+
+    next = __next__
