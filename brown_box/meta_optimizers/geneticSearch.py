@@ -110,7 +110,7 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
         strategy="best1bin",
         maxiter=1000,
         popsize=15,
-        tol=0.01,
+        tol=0.001,
         mutation=(0.5, 1),
         recombination=0.7,
         seed=None,
