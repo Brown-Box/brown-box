@@ -17,7 +17,8 @@ class BrownBoxAbstractOptimizer(AbstractOptimizer):
         self.tr = HyperTransformer(api_config)
 
         self.known_points = []
-        self.known_values = []
+        self.known_values = []  # normalized to (0, 1). inf -> 2
+        self.known_values_real = []
 
         self.current_iteration = 0
 
@@ -51,6 +52,22 @@ class BrownBoxAbstractOptimizer(AbstractOptimizer):
         """
         return self.random_suggestion(n_suggestions)
 
+    @staticmethod
+    def _normalize_values(values, inf=np.iinfo(np.int32).max, new_inf=2):
+        """Transform values to (0, 1) range. Inf is transformed to new_inf"""
+        is_valid_value = lambda v: v != inf
+        min_value = min(filter(is_valid_value, values), default=new_inf)
+        max_value = max(filter(is_valid_value, values), default=new_inf)
+
+        if min_value == max_value:  # cannot normalize
+            return values
+
+        difference = max_value - min_value
+        transform = (
+            lambda v: (v - min_value) / difference if is_valid_value(v) else new_inf
+        )
+        return list(map(transform, values))
+
     def observe(self, X, y):
         """Feed the observations back to hyperopt.
 
@@ -67,9 +84,10 @@ class BrownBoxAbstractOptimizer(AbstractOptimizer):
         for _X, _y in zip(X, y):
             self.known_points.append(_X)
             if np.isfinite(_y):
-                obs_y.append(_y + 1)
+                obs_y.append(_y)
             else:
                 obs_y.append(np.iinfo(np.int32).max)
-        self.known_values = np.concatenate([self.known_values, obs_y])
+        self.known_values_real = np.concatenate([self.known_values_real, obs_y])
+        self.known_values = self._normalize_values(self.known_values_real)
 
         self.current_iteration += 1
