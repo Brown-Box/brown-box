@@ -4,6 +4,7 @@ import random
 import bayesmark.random_search as rs
 from bayesmark import np_util
 from bayesmark.abstract_optimizer import AbstractOptimizer
+from bayesmark.space import JointSpace
 
 from ..utils import HyperTransformer
 
@@ -30,6 +31,27 @@ class BrownBoxAbstractOptimizer(AbstractOptimizer):
                 x_guess.remove(point)
         return x_guess
 
+    def _grid_suggestion(self, n_suggestions):
+        space = JointSpace(self.api_config)
+        grid = space.grid(n_suggestions)
+
+        # make sure grid has enough items
+        for key in grid:
+            while 0 < len(grid[key]) < n_suggestions:
+                grid[key] += grid[key]
+            random.shuffle(grid[key])
+            grid[key] = grid[key][:n_suggestions]
+
+        # select from the grid
+        suggestions = []
+        for i in range(n_suggestions):
+            guess = dict()
+            for key in grid:
+                guess[key] = grid[key][i]
+            suggestions.append(guess)
+
+        return suggestions
+
     def _random_suggestion(self, n_suggestions):
         return rs.suggest_dict(
             [],
@@ -39,9 +61,12 @@ class BrownBoxAbstractOptimizer(AbstractOptimizer):
             random=self._random_state,
         )
 
-    def random_suggestion(self, n_suggestions):
+    def random_suggestion(self, n_suggestions, grid=True):
         want_suggestions = len(self.known_points) + n_suggestions + 2
-        x_guess = self._random_suggestion(want_suggestions)
+        if grid:
+            x_guess = self._grid_suggestion(want_suggestions)
+        else:
+            x_guess = self._random_suggestion(want_suggestions)
         reduced_guess = self._remove_known_points(x_guess)
         random.shuffle(reduced_guess)
         return (reduced_guess + x_guess)[:n_suggestions]
