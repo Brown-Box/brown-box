@@ -1,4 +1,5 @@
 import numpy as np
+import random
 
 import bayesmark.random_search as rs
 from bayesmark import np_util
@@ -22,15 +23,28 @@ class BrownBoxAbstractOptimizer(AbstractOptimizer):
 
         self.current_iteration = 0
 
-    def random_suggestion(self, n_suggestions):
-        x_guess = rs.suggest_dict(
+    def _remove_known_points(self, guess):
+        x_guess = guess[:]
+        for point in self.known_points:
+            while point in x_guess:
+                x_guess.remove(point)
+        return x_guess
+
+    def _random_suggestion(self, n_suggestions):
+        return rs.suggest_dict(
             [],
             [],
             self.api_config,
             n_suggestions=n_suggestions,
             random=self._random_state,
         )
-        return x_guess
+
+    def random_suggestion(self, n_suggestions):
+        want_suggestions = len(self.known_points) + n_suggestions + 2
+        x_guess = self._random_suggestion(want_suggestions)
+        reduced_guess = self._remove_known_points(x_guess)
+        random.shuffle(reduced_guess)
+        return (reduced_guess + x_guess)[:n_suggestions]
 
     def suggest(self, n_suggestions=1):
         """Make `n_suggestions` suggestions for what to evaluate next.
