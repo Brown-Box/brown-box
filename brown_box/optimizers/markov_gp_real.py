@@ -87,6 +87,8 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
                 self.tr,
                 max_y=max(all_values),
                 min_y=min(all_values),
+                mean_y=all_values.mean(),
+                std_y=all_values.std(),
                 xi=self.xi,
                 kappa=self.kappa,
             )
