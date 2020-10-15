@@ -28,6 +28,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         min_known=2,
         normalize_y=True,
         init_mode="random_rs",
+        select_from=None,
     ):
         """This optimizes samples multiple suggestions from Gaussian Process.
 
@@ -49,6 +50,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         self._iter = 0
         self.min_known = min_known
         self.normalize_y = normalize_y
+        self.select_from = select_from
 
     def suggest(self, n_suggestions=1):
         """Make `n_suggestions` suggestions for what to evaluate next.
@@ -69,7 +71,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
             corresponds to a parameter being optimized.
         """
         if len(self.known_points) < self.min_known:
-            return self.random_suggestion(n_suggestions)
+            return self.random_suggestion(n_suggestions, select_from=self.select_from)
 
         new_points = []
         new_values = []
