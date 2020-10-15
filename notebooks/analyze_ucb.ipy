@@ -40,13 +40,13 @@ require.config({
 rnd = RandomState(seed=42)
 np.random.seed(42)
 problem = SklearnModel(
-    "ada", "wine", "nll", data_root="/mnt/workspace/output/run_fixed"
+    "ada", "wine", "acc", data_root="/mnt/workspace/output/run_fixed"
 )
 tr = HyperTransformer(problem.api_config)
 # %%[markdown]
 # ## Step 1 (initialize with random data)
 # %%
-suggestions_real = tr.random_continuous(8, rnd)
+suggestions_real = tr.random_continuous(96, rnd)
 _suggestions = tr.to_hyper_space(suggestions_real)
 suggestions = [
     dict(zip(_suggestions, (int(e), l[0])))
@@ -59,15 +59,19 @@ responses = np.asarray(responses)
 visible_to_opt = responses[:, 0]
 generalization = responses[:, 1]
 # %%
+%%time
+kernel = Matern(nu=2.5)
+kernel.length_scale = [10,1]
 gp = GaussianProcessRegressor(
-    kernel=DiscreteKernel(Matern(nu=2.5), tr),
-    alpha=1e-10,
-    normalize_y=True,
+#    kernel=DiscreteKernel(RationalQuadratic(), tr),
+    kernel=DiscreteKernel(kernel, tr),
+    alpha=1e-6,
+    normalize_y=False,
     n_restarts_optimizer=5,
     random_state=rnd,
 )
 gp.fit(suggestions_real, visible_to_opt)
-fig = make_subplots(rows=2, cols=2, subplot_titles=["Mean GP", "Std GP", "EI", "POI"])
+# %%
 n_pixels=250
 _n_estimators = np.linspace(tr._lb[0], tr._ub[0], n_pixels)
 _learning_rates = np.logspace(tr._lb[1], tr._ub[1], n_pixels)
@@ -80,21 +84,31 @@ _X = np.column_stack(
 )
 _y,_std = gp.predict(_X, return_std=True)
 min_y = min(visible_to_opt)
+max_y = max(visible_to_opt)
+std_y = visible_to_opt.std()
+mean_y = visible_to_opt.mean()
 xi = 0.01
 mean = _y.reshape(n_pixels, n_pixels)
 std = _std.reshape(n_pixels, n_pixels)
 ucb = mean - 2.6*std
-a = (mean - min_y - xi)
-z = a / std
+a = (mean + mean_y)
+z = a / std_y
+# z = a / std
 poi = norm.cdf(z)
 ei = a * norm.cdf(z) - std * norm.pdf(z)
-custom_data = np.dstack([mean, std, ei, poi])
+neg_a = (mean_y - mean + xi)
+z = neg_a / std_y
+neg_ei = -(neg_a * norm.cdf(z) + std * norm.pdf(z))
+plt.imshow(neg_ei.reshape(n_pixels, n_pixels))
+# %%
+fig = make_subplots(rows=2, cols=2, subplot_titles=["Mean GP (y+1)", "Std GP", "NEG_EI xi=0.01, z = a / std_y", "UCB"])
+custom_data = np.dstack([mean, std, neg_ei, ucb])
 fig.add_trace(go.Heatmap(
     x=_n_estimators,
     y=_learning_rates,
     z=mean,
     customdata=custom_data,
-    hovertemplate='mean:%{customdata[0]:.3f}<br>std:%{customdata[1]:.3f}<br>ucb:%{customdata[2]:.3f}<br>poi:%{customdata[3]:.3f}',
+    hovertemplate='mean:%{customdata[0]:.3f}<br>std:%{customdata[1]:.3f}<br>neg_ei:%{customdata[2]:.3f}<br>ei:%{customdata[3]:.3f}',
     opacity=1.0,
     colorscale="RdBu",
 ), row=1, col=1)
@@ -106,7 +120,7 @@ fig.add_trace(go.Heatmap(
     y=_learning_rates,
     z=std,
     customdata=custom_data,
-    hovertemplate='mean:%{customdata[0]:.3f}<br>std:%{customdata[1]:.3f}<br>ucb:%{customdata[2]:.3f}<br>poi:%{customdata[3]:.3f}',
+    hovertemplate='mean:%{customdata[0]:.3f}<br>std:%{customdata[1]:.3f}<br>neg_ei:%{customdata[2]:.3f}<br>ei:%{customdata[3]:.3f}',
     opacity=1.0,
     colorscale="RdBu",
 ), row=1, col=2)
@@ -115,9 +129,9 @@ fig.add_trace(sg_trace, row=1,col=2)
 fig.add_trace(go.Heatmap(
     x=_n_estimators,
     y=_learning_rates,
-    z=ei,
+    z=neg_ei,
     customdata=custom_data,
-    hovertemplate='mean:%{customdata[0]:.3f}<br>std:%{customdata[1]:.3f}<br>ucb:%{customdata[2]:.3f}<br>poi:%{customdata[3]:.3f}',
+    hovertemplate='mean:%{customdata[0]:.3f}<br>std:%{customdata[1]:.3f}<br>neg_ei:%{customdata[2]:.3f}<br>ei:%{customdata[3]:.3f}',
     opacity=1.0,
     colorscale="RdBu",
 ), row=2, col=1)
@@ -126,16 +140,22 @@ fig.add_trace(sg_trace, row=2,col=1)
 fig.add_trace(go.Heatmap(
     x=_n_estimators,
     y=_learning_rates,
-    z=poi,
+    z=ucb,
     customdata=custom_data,
-    hovertemplate='mean:%{customdata[0]:.3f}<br>std:%{customdata[1]:.3f}<br>ucb:%{customdata[2]:.3f}<br>poi:%{customdata[3]:.3f}',
+    hovertemplate='mean:%{customdata[0]:.3f}<br>std:%{customdata[1]:.3f}<br>neg_ei:%{customdata[2]:.3f}<br>ei:%{customdata[3]:.3f}',
     opacity=1.0,
     colorscale="RdBu",
 ), row=2, col=2)
 fig.add_trace(sg_trace, row=2,col=2)
 
-fig.update_layout(width=1600, height=1600)
+fig.update_layout(width=800, height=800)
 fig.update_xaxes(title_text='n_estimators', range=(tr._lb[0], tr._ub[0]))
 fig.update_yaxes(title_text='learning_rate',type="log", range=(tr._lb[1], tr._ub[1]))
 fig.show()
+# %%
+__suggestions = {key:value.flatten().tolist() for key, value in _suggestions.items()}
+x_guess = [
+    dict(zip(__suggestions, s))
+    for s in zip(*__suggestions.values())
+]
 # %%
