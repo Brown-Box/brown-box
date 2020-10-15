@@ -21,7 +21,6 @@ class GeneticSearchNonRandom:
         self._api_config = transformer.api_config
         self._start_time = None
         self._timeout = None
-        self._timeout_passed = None
         self.top_points_real = []
         self.top_values = []
         self.random = random
@@ -29,11 +28,9 @@ class GeneticSearchNonRandom:
         self._iter = step
 
     def suggest(self, timeout: Optional[int] = None) -> dict:
-
         if timeout:
             self._start_time = time()
             self._timeout = timeout
-            self._timeout_passed = False
 
         top_n = 5 + self._iter // 2
         n_rep = 3 + self._iter // 2
@@ -50,10 +47,11 @@ class GeneticSearchNonRandom:
             seed=self.random,
             callback=None,
             polish=False,
-            strategy="best1bin",
+            strategy="currenttobest1bin",
             maxiter=1000,
-            tol=0.01,
-            mutation=(0.25, 0.75),
+            popsize=15,
+            tol=0.001,
+            mutation=(0, 1),
             recombination=0.7,
             maxfun=np.inf,
             disp=False,
@@ -110,7 +108,7 @@ class BrownEvolutionSolver(DifferentialEvolutionSolver):
         strategy="best1bin",
         maxiter=1000,
         popsize=15,
-        tol=0.001,
+        tol=0.01,
         mutation=(0.5, 1),
         recombination=0.7,
         seed=None,
