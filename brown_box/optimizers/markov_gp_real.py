@@ -27,6 +27,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         iter_timeout=40.0,
         min_known=2,
         normalize_y=True,
+        init_mode="random_rs",
     ):
         """This optimizes samples multiple suggestions from Gaussian Process.
 
@@ -37,7 +38,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         api_config : dict-like of dict-like
             Configuration of the optimization variables. See API description.
         """
-        super().__init__(api_config, random)
+        super().__init__(api_config, random, init_mode)
         self._cost = cost
         self._meta_optimizer = meta_optimizer
         self.kernel=kernel
