@@ -39,7 +39,7 @@ class BrownBoxAbstractOptimizer(AbstractOptimizer):
         for key in grid:
             while 0 < len(grid[key]) < n_suggestions:
                 grid[key] += grid[key]
-            random.shuffle(grid[key])
+            self._random_state.shuffle(grid[key])
             grid[key] = grid[key][:n_suggestions]
 
         # select from the grid
@@ -68,7 +68,7 @@ class BrownBoxAbstractOptimizer(AbstractOptimizer):
         else:
             x_guess = self._random_suggestion(want_suggestions)
         reduced_guess = self._remove_known_points(x_guess)
-        random.shuffle(reduced_guess)
+        self._random_state.shuffle(reduced_guess)
         return (reduced_guess + x_guess)[:n_suggestions]
 
     def suggest(self, n_suggestions=1):
