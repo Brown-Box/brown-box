@@ -14,38 +14,38 @@ from ..utils import HyperTransformer
 
 
 class GeneticSearchNonRandom:
-    def __init__(
-        self, transformer: HyperTransformer, random, cost_function, step=0
-    ) -> None:
+    def __init__(self, transformer: HyperTransformer, random, cost_function, random_init=False, step=0) -> None:
         self._transformer = transformer
         self._api_config = transformer.api_config
-        self._start_time = None
-        self._timeout = None
         self.top_points_real = []
         self.top_values = []
-        self.random = random
-        self.cost = cost_function
-        self._iter = step
+        self.random=random
+        self.cost=cost_function
+        self.random_init=random_init
+        self._iter=step
 
     def suggest(self, timeout: Optional[int] = None) -> dict:
-        if timeout:
-            self._start_time = time()
-            self._timeout = timeout
 
-        top_n = 5 + self._iter // 2
-        n_rep = 3 + self._iter // 2
-        top_points = np.vstack([self.top_points_real[:top_n, ...]] * n_rep)
+        if not self.random_init:
+            top_n = 5+self._iter//2
+            n_rep = 10+self._iter//2
+            top_points = np.vstack([self.top_points_real[:top_n, ...]]*n_rep)
 
-        dx = self._transformer.random_continuous(top_n * n_rep, self.random)
-        dx *= 0.05
+            lbs = np.asarray(self._transformer._lb)
+            ubs = np.asarray(self._transformer._ub)
+            mid = (lbs+ubs)/2.0
+
+            dx = self._transformer.random_continuous(top_n*n_rep, self.random)
+            init_pop = top_points + (dx - mid)*0.05
+        else:
+            init_pop = "latinhypercube"
         # TODO turn on polish? Find out our own way to polish result?
         solver = BrownEvolutionSolver(
-            timeout=self._timeout,
+            timeout=timeout,
             func=self.cost,
             bounds=Bounds(self._transformer._lb, self._transformer._ub),
-            init=top_points + dx,
+            init=init_pop,
             seed=self.random,
-            callback=None,
             polish=False,
             strategy="currenttobest1bin",
             maxiter=1000,

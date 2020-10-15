@@ -1,0 +1,238 @@
+# %%
+import numpy as np
+import pandas as pd
+
+from bayesmark.sklearn_funcs import SklearnModel
+
+from brown_box.cost_functions import ucb_real, poi_real, ei_real
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import (
+    Matern,
+    RBF,
+    RationalQuadratic,
+    ExpSineSquared,
+)
+from brown_box.utils import DiscreteKernel, HyperTransformer
+from brown_box.optimizers import MarkovGaussianProcessReal
+from brown_box.meta_optimizers.geneticSearch import GeneticSearchNonRandom
+
+from numpy.random import RandomState
+from scipy.stats import norm
+from scipy.optimize._differentialevolution import DifferentialEvolutionSolver
+from scipy.optimize import Bounds
+import matplotlib.pyplot as plt
+
+BATCH_SIZE = 8
+
+# %%
+
+rnd = RandomState(seed=42)
+np.random.seed(42)
+problem = SklearnModel(
+    "ada", "wine", "acc", data_root="/mnt/workspace/output/run_fixed"
+)
+optimizer = MarkovGaussianProcessReal(
+    problem.api_config,
+    random=rnd,
+    cost=ei_real,
+    meta_optimizer=GeneticSearchNonRandom,
+    # kernel=RBF(),
+    kernel=Matern(nu=2.5),
+    iter_timeout=40.0,
+    xi=0.50,
+    r_xi=0.8,
+)
+
+# %%
+# ## Step 1 (initialize without inspection)
+INIT_STEPS=1
+# %%
+visible_to_opt = []
+generalization = []
+suggestions = []
+for _ in range(INIT_STEPS):
+    _suggestions = optimizer.suggest(BATCH_SIZE)
+    responses = []
+    for suggestion in _suggestions:
+        responses.append(problem.evaluate(suggestion))
+    responses = np.asarray(responses)
+    _visible_to_opt = responses[:, 0]
+    _generalization = responses[:, 1]
+    optimizer.observe(suggestions, _visible_to_opt)
+    visible_to_opt = np.concatenate([visible_to_opt, _visible_to_opt])
+    generalization = np.concatenate([generalization, _generalization])
+    suggestions += _suggestions
+
+# %%
+indices = np.argsort(visible_to_opt)
+top_values = [visible_to_opt[idx] for idx in indices]
+_x = [suggestions[idx] for idx in indices]
+_p = {k: [dic[k] for dic in _x] for k in _x[0]}
+X = optimizer.tr.to_real_space(**_p)
+top_points_real = X
+# %%
+top_n = 5
+n_rep = 10
+top_points = np.vstack([top_points_real[:top_n, ...]]*n_rep)
+
+lbs = np.asarray(optimizer.tr._lb)
+ubs = np.asarray(optimizer.tr._ub)
+mid = (lbs+ubs)/2.0
+
+dx = optimizer.tr.random_continuous(top_n*n_rep, rnd)
+init_pop = top_points+(dx - mid)*0.05
+# %%
+n_pixels=250
+_n_estimators = np.linspace(optimizer.tr._lb[0], optimizer.tr._ub[0], n_pixels, endpoint=False)
+_learning_rates = np.logspace(optimizer.tr._lb[1], optimizer.tr._ub[1], n_pixels, endpoint=False)
+
+gp = optimizer._gp()
+gp.fit(top_points_real, top_values)
+_X = np.column_stack([np.tile(_n_estimators, n_pixels), np.repeat(np.log10(_learning_rates), n_pixels)])
+_y, _std = gp.predict(_X, return_std=True)
+
+_n_estimators = np.linspace(optimizer.tr._lb[0], optimizer.tr._ub[0], n_pixels+1, endpoint=True)
+_learning_rates = np.logspace(optimizer.tr._lb[1], optimizer.tr._ub[1], n_pixels+1, endpoint=True)
+pos = plt.pcolormesh(_n_estimators, _learning_rates, _y.reshape(n_pixels,n_pixels))
+for sugg_id, sugg in enumerate(_x):
+    plt.text(sugg["n_estimators"], sugg["learning_rate"], f"{sugg_id}",bbox=dict(facecolor='green', alpha=0.5, edgecolor=None))
+for init_id, (n_estim, learn_r) in enumerate(init_pop):
+    plt.text(n_estim, 10**learn_r, f"{init_id}",bbox=dict(facecolor='white', alpha=0.5, edgecolor=None))
+plt.yscale("log")
+plt.colorbar(pos)
+# %%
+
+min_y=min(visible_to_opt)
+max_y=max(visible_to_opt)
+xi=0.01
+a = _y - min_y - xi
+z = a / _std
+ei = a * norm.cdf(z) - _std * norm.pdf(z)
+
+pos = plt.pcolormesh(_n_estimators, _learning_rates, ei.reshape(n_pixels,n_pixels))
+for sugg_id, sugg in enumerate(_x):
+    plt.text(sugg["n_estimators"], sugg["learning_rate"], f"{sugg_id}",bbox=dict(facecolor='green', alpha=0.5, edgecolor=None))
+for init_id, (n_estim, learn_r) in enumerate(init_pop):
+    plt.text(n_estim, 10**learn_r, f"{init_id}",bbox=dict(facecolor='white', alpha=0.5, edgecolor=None))
+plt.yscale("log")
+plt.colorbar(pos)
+
+# %%
+
+_cost = ei_real(gp,optimizer.tr, min_y, xi)
+
+cost_ei = _cost(_X)
+
+pos = plt.pcolormesh(_n_estimators, _learning_rates, cost_ei.reshape(n_pixels,n_pixels))
+for sugg_id, sugg in enumerate(_x):
+    plt.text(sugg["n_estimators"], sugg["learning_rate"], f"{sugg_id}",bbox=dict(facecolor='green', alpha=0.5, edgecolor=None))
+for init_id, (n_estim, learn_r) in enumerate(init_pop):
+    plt.text(n_estim, 10**learn_r, f"{init_id}",bbox=dict(facecolor='white', alpha=0.5, edgecolor=None))
+plt.yscale("log")
+plt.colorbar(pos)
+
+# %%
+solver = DifferentialEvolutionSolver(
+    func=_cost,
+    bounds=Bounds(optimizer.tr._lb, optimizer.tr._ub),
+    init=init_pop,
+    seed=rnd,
+    callback=None,
+    polish=False,
+    strategy="best1bin",
+    maxiter=1000,
+    tol=0.01,
+    mutation=(0.5, 1),
+    recombination=0.7,
+    maxfun=np.inf,
+    disp=False,
+    atol=0,
+    updating="immediate",
+    workers=1,
+    constraints=(),
+)
+solver_return_value = solver.solve()
+
+# %%
+pos = plt.pcolormesh(_n_estimators, _learning_rates, cost_ei.reshape(n_pixels,n_pixels))
+for sugg_id, sugg in enumerate(_x):
+    plt.text(sugg["n_estimators"], sugg["learning_rate"], f"{sugg_id}",bbox=dict(facecolor='green', alpha=0.5, edgecolor=None))
+for init_id, (n_estim, learn_r) in enumerate(init_pop):
+    plt.text(n_estim, 10**learn_r, f"{init_id}",bbox=dict(facecolor='white', alpha=0.5, edgecolor=None))
+plt.text(solver_return_value.x[0], 10**solver_return_value.x[1], "x",bbox=dict(facecolor='white', alpha=0.5, edgecolor=None))
+plt.yscale("log")
+plt.colorbar(pos)
+
+# %%
+all_values = np.concatenate([np.asarray(top_values), gp.predict(optimizer.tr.continuous_transform(np.expand_dims(solver_return_value.x,0)))])
+all_points = np.vstack([top_points_real, optimizer.tr.continuous_transform(np.expand_dims(solver_return_value.x,0))])
+
+gp2 = optimizer._gp()
+gp2.fit(all_points, all_values)
+_y, _std = gp2.predict(_X, return_std=True)
+
+_n_estimators = np.linspace(optimizer.tr._lb[0], optimizer.tr._ub[0], n_pixels+1, endpoint=True)
+_learning_rates = np.logspace(optimizer.tr._lb[1], optimizer.tr._ub[1], n_pixels+1, endpoint=True)
+pos = plt.pcolormesh(_n_estimators, _learning_rates, _y.reshape(n_pixels,n_pixels))
+for sugg_id, (n_estim, learn_r) in enumerate(all_points):
+    plt.text(n_estim, 10**learn_r, f"{sugg_id}",bbox=dict(facecolor='green', alpha=0.5, edgecolor=None))
+plt.yscale("log")
+plt.colorbar(pos)
+
+__true = problem.evaluate({"n_estimators":int(np.rint(solver_return_value.x[0])), "learning_rate": 10**solver_return_value.x[1]})
+
+# %%
+
+min_y=min(visible_to_opt)
+max_y=max(visible_to_opt)
+xi=0.01
+a = _y - min_y - xi
+z = a / _std
+ei = a * norm.cdf(z) - _std * norm.pdf(z)
+
+pos = plt.pcolormesh(_n_estimators, _learning_rates, ei.reshape(n_pixels,n_pixels))
+for sugg_id, sugg in enumerate(_x):
+    plt.text(sugg["n_estimators"], sugg["learning_rate"], f"{sugg_id}",bbox=dict(facecolor='green', alpha=0.5, edgecolor=None))
+for init_id, (n_estim, learn_r) in enumerate(init_pop):
+    plt.text(n_estim, 10**learn_r, f"{init_id}",bbox=dict(facecolor='white', alpha=0.5, edgecolor=None))
+plt.yscale("log")
+plt.colorbar(pos)
+
+# %%
+
+_cost2 = ei_real(gp2,optimizer.tr, min_y, xi)
+
+cost_ei2 = _cost(_X)
+
+pos = plt.pcolormesh(_n_estimators, _learning_rates, cost_ei2.reshape(n_pixels,n_pixels))
+for sugg_id, (n_estim, learn_r) in enumerate(all_points):
+    plt.text(n_estim, 10**learn_r, f"{sugg_id}",bbox=dict(facecolor='green', alpha=0.5, edgecolor=None))
+for init_id, (n_estim, learn_r) in enumerate(init_pop):
+    plt.text(n_estim, 10**learn_r, f"{init_id}",bbox=dict(facecolor='white', alpha=0.5, edgecolor=None))
+plt.yscale("log")
+plt.colorbar(pos)
+
+# %%
+
+solver = DifferentialEvolutionSolver(
+    func=_cost2,
+    bounds=Bounds(optimizer.tr._lb, optimizer.tr._ub),
+    init=init_pop,
+    seed=rnd,
+    callback=None,
+    polish=False,
+    strategy="best1bin",
+    maxiter=1000,
+    tol=0.01,
+    mutation=(0.5, 1),
+    recombination=0.7,
+    maxfun=np.inf,
+    disp=False,
+    atol=0,
+    updating="immediate",
+    workers=1,
+    constraints=(),
+)
+solver_return_value = solver.solve()
+
+# %%

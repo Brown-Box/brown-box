@@ -135,7 +135,7 @@ def plot_cost(cost, optimizer, X, y, hyper_points=None, n_pixels=500):
 rnd = RandomState(seed=42)
 np.random.seed(42)
 problem = SklearnModel(
-    "ada", "wine", "nll", data_root="/mnt/workspace/output/run_fixed"
+    "ada", "wine", "acc", data_root="/mnt/workspace/output/run_fixed"
 )
 optimizer = MarkovGaussianProcessReal(
     problem.api_config, random=rnd, cost=ucb_real
@@ -218,4 +218,17 @@ plot_cost(ucb_real, optimizer, X, y, chain(suggestions, _suggestions))
 plot_cost(ei_real, optimizer, X, y, chain(suggestions, _suggestions))
 f=plot_cost(poi_real, optimizer, X, y, chain(suggestions, _suggestions))
 
+# %%
+
+gp = optimizer._gp()
+gp.fit(X, visible_to_opt)
+
+_cost = poi_real(
+            gp,
+            optimizer.tr,
+            max_y=max(visible_to_opt),
+            min_y=min(visible_to_opt),
+            xi=0.1,
+            kappa=2.6,
+        )
 # %%

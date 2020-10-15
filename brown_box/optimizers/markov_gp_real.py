@@ -24,7 +24,10 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         xi=5.0,
         r_xi=1,
         kappa=2.6,
-        iter_timeout=40.0
+        iter_timeout=40.0,
+        min_known=2,
+        normalize_y=True,
+        init_mode="random_rs",
     ):
         """This optimizes samples multiple suggestions from Gaussian Process.
 
@@ -35,7 +38,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         api_config : dict-like of dict-like
             Configuration of the optimization variables. See API description.
         """
-        super().__init__(api_config, random)
+        super().__init__(api_config, random, init_mode)
         self._cost = cost
         self._meta_optimizer = meta_optimizer
         self.kernel=kernel
@@ -44,6 +47,8 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         self.r_xi = r_xi
         self.kappa = kappa
         self._iter = 0
+        self.min_known = min_known
+        self.normalize_y = normalize_y
 
     def suggest(self, n_suggestions=1):
         """Make `n_suggestions` suggestions for what to evaluate next.
@@ -63,7 +68,7 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
             function. Each suggestion is a dictionary where each key
             corresponds to a parameter being optimized.
         """
-        if len(self.known_points) < 20:
+        if len(self.known_points) < self.min_known:
             return self.random_suggestion(n_suggestions)
 
         new_points = []
@@ -83,12 +88,15 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
                 self.tr,
                 max_y=max(all_values),
                 min_y=min(all_values),
+                mean_y=all_values.mean(),
+                std_y=all_values.std(),
                 xi=self.xi,
                 kappa=self.kappa,
             )
             meta_minimizer = self._meta_optimizer(
                 self.tr, self._random_state, cost_f, step=self._iter
             )
+            # meta_minimizer.observe(self.known_points, self.known_values)
             meta_minimizer.observe(all_points, all_values)
             min_point = [meta_minimizer.suggest(timeout=self.iter_timeout*0.9/n_suggestions)]
             new_points += min_point
@@ -103,19 +111,11 @@ class MarkovGaussianProcessReal(BrownBoxAbstractOptimizer):
         return new_points
 
     def _gp(self):
-        # length_scale = (ubs-lbs)/(16+self._iter)
-        # if self._iter < 5:
-        #     lbs = np.asarray(self.tr._lb)
-        #     ubs = np.asarray(self.tr._ub)
-        #     length_scale = (ubs-lbs)/16
-        # else:
-        #     length_scale = 1.0
-        # self.kernel.length_scale = length_scale
         return GaussianProcessRegressor(
             kernel=DiscreteKernel(self.kernel, self.tr),
             # kernel=self.kernel,
             alpha=1e-6,
-            normalize_y=True,
+            normalize_y=self.normalize_y,
             n_restarts_optimizer=5,
             random_state=self._random_state,
         )
