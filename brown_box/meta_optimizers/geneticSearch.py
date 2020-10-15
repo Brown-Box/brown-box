@@ -21,7 +21,6 @@ class GeneticSearchNonRandom:
         self._api_config = transformer.api_config
         self._start_time = None
         self._timeout = None
-        self._timeout_passed = None
         self.top_points_real = []
         self.top_values = []
         self.random = random
@@ -29,11 +28,9 @@ class GeneticSearchNonRandom:
         self._iter = step
 
     def suggest(self, timeout: Optional[int] = None) -> dict:
-
         if timeout:
             self._start_time = time()
             self._timeout = timeout
-            self._timeout_passed = False
 
         top_n = 5 + self._iter // 2
         n_rep = 3 + self._iter // 2
