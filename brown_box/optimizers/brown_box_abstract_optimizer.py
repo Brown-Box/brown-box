@@ -61,8 +61,8 @@ class BrownBoxAbstractOptimizer(AbstractOptimizer):
             random=self._random_state,
         )
 
-    def random_suggestion(self, n_suggestions, grid=True):
-        want_suggestions = len(self.known_points) + n_suggestions + 2
+    def random_suggestion(self, n_suggestions, grid=True, select_from=None):
+        want_suggestions = select_from or len(self.known_points) + n_suggestions + 2
         if grid:
             x_guess = self._grid_suggestion(want_suggestions)
         else:
