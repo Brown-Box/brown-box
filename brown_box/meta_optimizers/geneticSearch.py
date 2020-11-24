@@ -87,6 +87,12 @@ class GeneticSearchNonRandom:
         self.top_points_real = X
 
 
+class GeneticSearch(GeneticSearchNonRandom):
+    def __init__(self, *args, **kwargs):
+        kwargs.update(random_init=True)
+        super().__init__(*args, **kwargs)
+
+
 _status_message = {'success': 'Optimization terminated successfully.',
                    'maxfev': 'Maximum number of function evaluations has '
                               'been exceeded.',
